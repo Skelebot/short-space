@@ -14,13 +14,14 @@ pub mod camera;
 pub mod resources;
 pub mod input;
 mod entity;
-mod triangle;
 mod debug;
 mod model;
 pub mod settings;
+pub mod gamestate;
 
 use entity::Entity;
 use settings::GameSettings;
+use gamestate::GameState;
 use failure::err_msg;
 use crate::resources::Resources;
 use std::path::Path;
@@ -40,7 +41,9 @@ fn run() -> Result<(), failure::Error> {
 
     let mut settings: GameSettings = Default::default(); 
     settings.debug = false;
+    settings.vsync = true;
  
+    //--------------------
     let res = Resources::from_relative_exe_path(Path::new("assets")).unwrap();
 
     let sdl = sdl2::init().map_err(err_msg)?;
@@ -67,24 +70,30 @@ fn run() -> Result<(), failure::Error> {
         video_subsystem.gl_set_swap_interval(0).unwrap();
     }
 
-    // "capture" mouse input
-    sdl.mouse().set_relative_mouse_mode(true);
-
     let mut viewport = render_gl::Viewport::for_window(settings.window_width, settings.window_height);
     viewport.set_used(&gl);
     let color_buffer = render_gl::ColorBuffer::from_color(na::Vector3::new(0.3, 0.3, 0.5));
     color_buffer.set_used(&gl);
 
-    let dice_model = model::Model::new(&res, &gl, "models/dice.obj", "shaders/cube", settings.debug)?;
-    let dice = entity::Entity::new(na::Point3::new(-2.0, 0.0, 0.0), Some(&dice_model));
-    let dice2 = entity::Entity::new(na::Point3::new(2.0, 0.0, 0.0), Some(&dice_model)); 
-
-    let entities: Vec<entity::Entity> = vec!(dice, dice2);
-
-    let mut camera = Camera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
-
     let mut keyboard_input = input::KeyboardInput::new();
     let mut mouse_input = input::MouseInput::new();
+    //--------------------
+
+    let dice_model = model::Model::new(&res, &gl, "models/dice.obj", "shaders/cube", settings.debug)?;
+    let dice = Entity::new(
+        na::Point3::new(-2.0, 0.0, 0.0),
+        na::UnitQuaternion::from_euler_angles(0.0, 45.0, 45.0),
+        Some(&dice_model));
+
+    let dice2 = Entity::new(
+        na::Point3::new(2.0, 0.0, 0.0),
+        na::UnitQuaternion::from_euler_angles(30.0, 0.0, 0.0),
+        Some(&dice_model));
+
+    let entities: Vec<Entity> = vec!(dice, dice2);
+
+    let mut camera = Camera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
+    let mut game_state = GameState::new(&mut camera);
     
     unsafe {
         // set the texture wrapping parameters
@@ -102,7 +111,7 @@ fn run() -> Result<(), failure::Error> {
     let mut event_pump = sdl.event_pump().map_err(err_msg)?;
     'main: loop {
 
-        let delta = 1.0/time.elapsed().as_fractional_secs() as f32;
+        let delta = time.elapsed().as_fractional_secs() as f32;
         time = Instant::now();
 
         //handle input
@@ -114,17 +123,18 @@ fn run() -> Result<(), failure::Error> {
                     ..
                 } => {
                     viewport.update_size(w, h);
-                    camera.update_aspect(viewport.get_aspect());
+                    game_state.active_camera.update_aspect(viewport.get_aspect());
                     viewport.set_used(&gl);
                 },
                 e => {
-                    keyboard_input.handle_input(&e);
-                    mouse_input.handle_input(&mut camera, &e, delta);
+                    keyboard_input.handle_input(&e, &mut game_state);
+                    mouse_input.handle_input(game_state.active_camera, &e, delta, settings.mouse_sensitivity);
                 }
             }
         }
-
-        keyboard_input.move_camera(&mut camera, delta);
+        keyboard_input.move_camera(game_state.active_camera, delta, settings.movement_sensitivity);
+        // release mouse cursor
+        sdl.mouse().set_relative_mouse_mode(!game_state.in_menu);
 
         unsafe {
             gl.Enable(gl::CULL_FACE);
@@ -137,9 +147,9 @@ fn run() -> Result<(), failure::Error> {
         for entity in entities.iter() {
             entity.render(
                 &gl,
-                &camera.get_view_matrix(),
-                &camera.get_projection_matrix(),
-                &camera.position
+                &game_state.active_camera.get_view_matrix(),
+                &game_state.active_camera.get_projection_matrix(),
+                &game_state.active_camera.position
             );
         }
 

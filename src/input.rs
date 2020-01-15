@@ -1,5 +1,6 @@
 use camera::camera::Camera;
 use camera::camera::MovementDirection;
+use gamestate::GameState;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
@@ -17,11 +18,11 @@ impl KeyboardInput {
             forward: false,
             backward: false,
             right: false,
-            left: false
+            left: false,
         }
     }
 
-    pub fn handle_input(&mut self, event: &sdl2::event::Event) {
+    pub fn handle_input(&mut self, event: &sdl2::event::Event, gamestate: &mut GameState) {
         match *event {
             Event::KeyDown {
                 scancode: Some(scancode),
@@ -41,17 +42,19 @@ impl KeyboardInput {
                 Scancode::S => self.backward = false,
                 Scancode::A => self.left = false,
                 Scancode::D => self.right = false,
+
+                Scancode::Escape => gamestate.in_menu = !gamestate.in_menu,
                 _ => ()
             },
             _ => ()
         }
     }
 
-    pub fn move_camera(&self, camera: &mut Camera, delta_time: f32) {
-        if self.forward  { camera.process_movement(MovementDirection::FORWARD,   delta_time); }
-        if self.backward { camera.process_movement(MovementDirection::BACKWARD,  delta_time); }
-        if self.left     { camera.process_movement(MovementDirection::LEFT,      delta_time); }
-        if self.right    { camera.process_movement(MovementDirection::RIGHT,     delta_time); }
+    pub fn move_camera(&self, camera: &mut Camera, delta_time: f32, sensitivity: f32) {
+        if self.forward  { camera.process_movement(MovementDirection::FORWARD,   delta_time, sensitivity); }
+        if self.backward { camera.process_movement(MovementDirection::BACKWARD,  delta_time, sensitivity); }
+        if self.left     { camera.process_movement(MovementDirection::LEFT,      delta_time, sensitivity); }
+        if self.right    { camera.process_movement(MovementDirection::RIGHT,     delta_time, sensitivity); }
     }
 }
 
@@ -60,14 +63,14 @@ pub struct MouseInput;
 
 impl MouseInput {
     pub fn new() -> MouseInput { MouseInput{} }
-    pub fn handle_input(&mut self, camera: &mut Camera, event: &sdl2::event::Event, delta_time: f32) {
+    pub fn handle_input(&mut self, camera: &mut Camera, event: &sdl2::event::Event, delta_time: f32, sensitivity: f32) {
         match *event {
             Event::MouseMotion {
                 xrel,
                 yrel,
                 ..
             } => {
-                camera.rotate(xrel as f32, yrel as f32, delta_time);
+                camera.rotate(xrel as f32, yrel as f32, delta_time, sensitivity);
             }
             _ => ()
         }

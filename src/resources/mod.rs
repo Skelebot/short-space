@@ -1,7 +1,7 @@
 use image;
 use std::ffi;
 use std::fs;
-use std::io::{self, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 mod error;

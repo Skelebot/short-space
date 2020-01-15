@@ -1,4 +1,3 @@
-use nalgebra as na;
 
 pub struct GameSettings {
     pub debug: bool,
@@ -13,8 +12,8 @@ impl Default for GameSettings {
     fn default() -> Self {
         GameSettings {
             debug: false,
-            movement_sensitivity: 0.0005,
-            mouse_sensitivity: 0.0005,
+            movement_sensitivity: 8.0,
+            mouse_sensitivity: 8.0,
             vsync: false,
             window_width: 800,
             window_height: 600,

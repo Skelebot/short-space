@@ -125,7 +125,7 @@ impl Model {
         view_matrix: &na::Matrix4<f32>,
         proj_matrix: &na::Matrix4<f32>,
         camera_pos: &na::Point3<f32>,
-        position: &na::Point3<f32>,
+        transformation: &na::Isometry3<f32>
     ) {
         self.program.set_used();
 
@@ -143,8 +143,8 @@ impl Model {
         if let Some(loc) = self.camera_pos_location {
             self.program.set_uniform_3f(loc, &camera_pos.coords);
         }
-        let pos_loc = self.program.get_uniform_location("ModelPos").unwrap();
-        self.program.set_uniform_3f(pos_loc, &position.coords);
+        let model_loc = self.program.get_uniform_location("Model").unwrap();
+        self.program.set_uniform_matrix_4fv(model_loc, &transformation.to_homogeneous());
         self.vao.bind();
 
         unsafe {

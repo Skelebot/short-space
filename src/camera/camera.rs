@@ -25,7 +25,7 @@ impl Camera {
         zfar: f32,
     ) -> Camera {
         let mut cam = Camera {
-            position: na::Point3::new(0.0, 0.0, -2.0),
+            position: na::Point3::new(0.0, 0.0, 0.0),
             target: na::Vector3::new(0.0, 0.0, -1.0),
             right: *na::Vector3::x_axis(),
             up: *na::Vector3::y_axis(),
@@ -68,8 +68,7 @@ impl Camera {
     }
 
     ///Rotate camera using relative mouse movement over screen
-    pub fn rotate(&mut self, xrel: f32, yrel: f32, delta_time: f32) {
-        let sensitivity = 0.00008;
+    pub fn rotate(&mut self, xrel: f32, yrel: f32, delta_time: f32, sensitivity: f32) {
         let xoffset = xrel * sensitivity * delta_time;
         let yoffset = yrel * sensitivity * delta_time;
 
@@ -81,8 +80,7 @@ impl Camera {
         self.update_vectors();
     }
 
-    pub fn process_movement(&mut self, direction: MovementDirection, delta_time: f32) {
-        let movement_speed = 0.000001;
+    pub fn process_movement(&mut self, direction: MovementDirection, delta_time: f32, movement_speed: f32) {
         let velocity = movement_speed * delta_time;
         match direction {
             MovementDirection::FORWARD => self.position.coords += self.target * velocity,
