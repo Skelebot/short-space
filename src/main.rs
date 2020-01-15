@@ -18,10 +18,11 @@ mod debug;
 mod model;
 pub mod settings;
 pub mod gamestate;
+pub mod scene;
 
-use entity::Entity;
 use settings::GameSettings;
 use gamestate::GameState;
+use scene::Scene;
 use failure::err_msg;
 use crate::resources::Resources;
 use std::path::Path;
@@ -40,7 +41,7 @@ fn main() {
 fn run() -> Result<(), failure::Error> {
 
     let mut settings: GameSettings = Default::default(); 
-    settings.debug = false;
+    settings.debug = true;
     settings.vsync = true;
  
     //--------------------
@@ -72,42 +73,28 @@ fn run() -> Result<(), failure::Error> {
 
     let mut viewport = render_gl::Viewport::for_window(settings.window_width, settings.window_height);
     viewport.set_used(&gl);
-    let color_buffer = render_gl::ColorBuffer::from_color(na::Vector3::new(0.3, 0.3, 0.5));
+    let color_buffer = render_gl::ColorBuffer::from_color(na::Vector3::new(0.0, 0.0, 0.0));
     color_buffer.set_used(&gl);
-
+    unsafe {
+        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+    }
     let mut keyboard_input = input::KeyboardInput::new();
     let mut mouse_input = input::MouseInput::new();
     //--------------------
 
-    let dice_model = model::Model::new(&res, &gl, "models/dice.obj", "shaders/cube", settings.debug)?;
-    let dice = Entity::new(
-        na::Point3::new(-2.0, 0.0, 0.0),
-        na::UnitQuaternion::from_euler_angles(0.0, 45.0, 45.0),
-        Some(&dice_model));
-
-    let dice2 = Entity::new(
-        na::Point3::new(2.0, 0.0, 0.0),
-        na::UnitQuaternion::from_euler_angles(30.0, 0.0, 0.0),
-        Some(&dice_model));
-
-    let entities: Vec<Entity> = vec!(dice, dice2);
-
     let mut camera = Camera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
     let mut game_state = GameState::new(&mut camera);
+    let scene = Scene::new(&res, &gl, settings.debug)?;
+    game_state.active_scene = Some(&scene);
     
-    unsafe {
-        // set the texture wrapping parameters
-        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32); // set texture wrapping to gl::REPEAT (default wrapping method)
-        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-        // set texture filtering parameters
-        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
-        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
-    }
-
     let mut time = Instant::now();
 
+    //------------------------------
     // main loop
-
+    //------------------------------
     let mut event_pump = sdl.event_pump().map_err(err_msg)?;
     'main: loop {
 
@@ -136,6 +123,7 @@ fn run() -> Result<(), failure::Error> {
         // release mouse cursor
         sdl.mouse().set_relative_mouse_mode(!game_state.in_menu);
 
+        //TODO: Move somewhere
         unsafe {
             gl.Enable(gl::CULL_FACE);
             gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
@@ -144,7 +132,7 @@ fn run() -> Result<(), failure::Error> {
 
         //clear the color buffer
         color_buffer.clear(&gl);
-        for entity in entities.iter() {
+        for entity in game_state.active_scene.unwrap().entities.iter() {
             entity.render(
                 &gl,
                 &game_state.active_camera.get_view_matrix(),
