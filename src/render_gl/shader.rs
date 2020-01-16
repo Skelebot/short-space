@@ -150,6 +150,12 @@ impl Program {
             self.gl.Uniform1i(location, index);
         }
     }
+    
+    pub fn set_uniform_1f(&self, location: i32, value: f32) {
+        unsafe{
+            self.gl.Uniform1f(location, value);
+        }
+    }
 }
 
 impl Drop for Program {

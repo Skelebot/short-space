@@ -21,7 +21,8 @@ void main()
     gl_Position = Projection * View * Model * vec4(Position, 1.0);
 
     OUT.Uv = Uv;
-    OUT.Normal = Normal;
+    //protect aganist non-uniform scaling
+    OUT.Normal = mat3(transpose(inverse(Model))) * Normal;
     OUT.CameraPos = CameraPos;
     OUT.Position = Position;
 }

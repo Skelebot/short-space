@@ -3,6 +3,7 @@ use gl;
 use nalgebra as na;
 use crate::render_gl::{self, buffer, data};
 use crate::resources::Resources;
+use crate::light::PointLight;
 
 #[derive(VertexAttribPointers, Copy, Clone, Debug)]
 #[repr(C, packed)]
@@ -125,13 +126,24 @@ impl Model {
         view_matrix: &na::Matrix4<f32>,
         proj_matrix: &na::Matrix4<f32>,
         camera_pos: &na::Point3<f32>,
-        transformation: &na::Isometry3<f32>
+        transformation: &na::Isometry3<f32>,
+        lights: &Vec<PointLight>
     ) {
         self.program.set_used();
+        //bind lights
+        //TODO: add support for more than one light
+        let lpos = self.program.get_uniform_location("light.position");
+        let lcol = self.program.get_uniform_location("light.color");
+        let lstr = self.program.get_uniform_location("light.strength");
+        self.program.set_uniform_3f(lpos.unwrap(), &lights[0].position.coords);
+        self.program.set_uniform_3f(lcol.unwrap(), &lights[0].color);
+        self.program.set_uniform_1f(lstr.unwrap(), lights[0].strength);
 
+        let mut texture_bind = None;
         if let (Some(loc), &Some(ref texture)) = (self.tex_face_location, &self.texture) {
             texture.bind_at(0);
             self.program.set_uniform_1i(loc, 0);
+            texture_bind = Some(texture);
         }
 
         if let Some(loc) = self.program_view_location {
@@ -154,6 +166,10 @@ impl Model {
                 gl::UNSIGNED_INT,
                 std::ptr::null()
             );
+        }
+        // ensure that if the model does not have a texture, it won't take the last texture bind
+        if let Some(tex) = texture_bind {
+            tex.unbind();
         }
     }
 }

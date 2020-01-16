@@ -13,6 +13,7 @@ pub mod render_gl;
 pub mod camera;
 pub mod resources;
 pub mod input;
+mod light;
 mod entity;
 mod debug;
 mod model;
@@ -41,7 +42,7 @@ fn main() {
 fn run() -> Result<(), failure::Error> {
 
     let mut settings: GameSettings = Default::default(); 
-    settings.debug = true;
+    settings.debug = false;
     settings.vsync = true;
  
     //--------------------
@@ -137,7 +138,8 @@ fn run() -> Result<(), failure::Error> {
                 &gl,
                 &game_state.active_camera.get_view_matrix(),
                 &game_state.active_camera.get_projection_matrix(),
-                &game_state.active_camera.position
+                &game_state.active_camera.position,
+                &game_state.active_scene.unwrap().lights,
             );
         }
 

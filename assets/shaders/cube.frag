@@ -1,5 +1,12 @@
 #version 330 core
 
+struct PointLight {
+    vec3 position;
+    vec3 color;
+    float strength;
+};
+
+uniform PointLight light;
 uniform sampler2D TexFace;
 
 in VS_OUTPUT {
@@ -13,7 +20,11 @@ out vec4 Color;
 
 void main()
 {
-    vec3 color = texture(TexFace, IN.Uv).rgb;
+    vec3 normal = normalize(IN.Normal);
+    vec3 lightDirection = normalize(light.position - IN.Position);
+    float diff = max(dot(normal, lightDirection), 0.0);
+    vec3 diffuse = diff * light.color * light.strength;
+    vec3 color = diffuse * texture(TexFace, IN.Uv).rgb;
 
     Color = vec4(color, 1.0);
 }
