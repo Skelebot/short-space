@@ -1,11 +1,13 @@
 extern crate nalgebra;
 
 pub use self::spectator_camera::SpectatorCamera;
+pub use self::fps_camera::FpsCamera;
 
 use crate::input::MovementDirection;
 use nalgebra as na;
 
 pub mod spectator_camera;
+pub mod fps_camera;
 
 pub trait Camera {
     fn update_aspect(&mut self, aspect: f32);

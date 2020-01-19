@@ -30,7 +30,7 @@ use std::path::Path;
 use debug::failure_to_string;
 use std::time::Instant;
 use nalgebra as na;
-use camera::SpectatorCamera;
+use camera::FpsCamera;
 use floating_duration::TimeAsFloat;
 use input::Input;
 
@@ -85,7 +85,7 @@ fn run() -> Result<(), failure::Error> {
     }
     //--------------------
 
-    let mut camera = SpectatorCamera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
+    let mut camera = FpsCamera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
     let mut game_state = GameState::new(&mut camera);
     let scene = Scene::new(&res, &gl, settings.debug)?;
     game_state.active_scene = Some(&scene);
