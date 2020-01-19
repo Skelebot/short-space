@@ -9,20 +9,20 @@ extern crate floating_duration;
 #[macro_use] extern crate render_gl_derive;
 #[macro_use] extern crate failure;
 
-pub mod render_gl;
-pub mod camera;
-pub mod resources;
-pub mod input;
+mod render_gl;
+mod camera;
+mod resources;
+mod input;
 mod light;
 mod entity;
 mod debug;
 mod model;
-pub mod settings;
-pub mod gamestate;
-pub mod scene;
+mod settings;
+mod game_state;
+mod scene;
 
 use settings::GameSettings;
-use gamestate::GameState;
+use game_state::GameState;
 use scene::Scene;
 use failure::err_msg;
 use crate::resources::Resources;
@@ -30,8 +30,9 @@ use std::path::Path;
 use debug::failure_to_string;
 use std::time::Instant;
 use nalgebra as na;
-use camera::Camera;
+use camera::SpectatorCamera;
 use floating_duration::TimeAsFloat;
+use input::Input;
 
 fn main() {
     if let Err(e) = run() {
@@ -82,14 +83,14 @@ fn run() -> Result<(), failure::Error> {
         gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
         gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
     }
-    let mut keyboard_input = input::KeyboardInput::new();
-    let mut mouse_input = input::MouseInput::new();
     //--------------------
 
-    let mut camera = Camera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
+    let mut camera = SpectatorCamera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
     let mut game_state = GameState::new(&mut camera);
     let scene = Scene::new(&res, &gl, settings.debug)?;
     game_state.active_scene = Some(&scene);
+
+    let mut input = Input::new(settings.mouse_sensitivity, settings.movement_speed);
     
     let mut time = Instant::now();
 
@@ -114,13 +115,11 @@ fn run() -> Result<(), failure::Error> {
                     game_state.active_camera.update_aspect(viewport.get_aspect());
                     viewport.set_used(&gl);
                 },
-                e => {
-                    keyboard_input.handle_input(&e, &mut game_state);
-                    mouse_input.handle_input(game_state.active_camera, &e, delta, settings.mouse_sensitivity);
-                }
+                e => input.handle_event(&e, &mut game_state, delta),
             }
         }
-        keyboard_input.move_camera(game_state.active_camera, delta, settings.movement_sensitivity);
+        input.update(&mut game_state, delta);
+
         // release mouse cursor
         sdl.mouse().set_relative_mouse_mode(!game_state.in_menu);
 
@@ -138,7 +137,7 @@ fn run() -> Result<(), failure::Error> {
                 &gl,
                 &game_state.active_camera.get_view_matrix(),
                 &game_state.active_camera.get_projection_matrix(),
-                &game_state.active_camera.position,
+                &game_state.active_camera.get_position(),
                 &game_state.active_scene.unwrap().lights,
             );
         }
