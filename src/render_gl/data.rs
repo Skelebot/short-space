@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 
 use gl;
+use super::vec_2_10_10_10;
+use super::half;
 
 #[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
@@ -1831,11 +1833,11 @@ impl From<(u32, u32, u32, u32)> for u32_u32_u32_u32_float {
 #[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct f16_ {
-    pub d0: ::half::f16,
+    pub d0: half::f16,
 }
 
 impl f16_ {
-    pub fn new(d0: ::half::f16) -> f16_ {
+    pub fn new(d0: half::f16) -> f16_ {
         f16_ { d0 }
     }
 
@@ -1857,8 +1859,8 @@ impl f16_ {
     }
 }
 
-impl From<::half::f16> for f16_ {
-    fn from(other: ::half::f16) -> Self {
+impl From<half::f16> for f16_ {
+    fn from(other: half::f16) -> Self {
         f16_::new(other)
     }
 }
@@ -1868,12 +1870,12 @@ impl From<::half::f16> for f16_ {
 #[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct f16_f16 {
-    pub d0: ::half::f16,
-    pub d1: ::half::f16,
+    pub d0: half::f16,
+    pub d1: half::f16,
 }
 
 impl f16_f16 {
-    pub fn new(d0: ::half::f16, d1: ::half::f16) -> f16_f16 {
+    pub fn new(d0: half::f16, d1: half::f16) -> f16_f16 {
         f16_f16 { d0, d1 }
     }
 
@@ -1895,8 +1897,8 @@ impl f16_f16 {
     }
 }
 
-impl From<(::half::f16, ::half::f16)> for f16_f16 {
-    fn from(other: (::half::f16, ::half::f16)) -> Self {
+impl From<(half::f16, half::f16)> for f16_f16 {
+    fn from(other: (half::f16, half::f16)) -> Self {
         f16_f16::new(other.0, other.1)
     }
 }
@@ -1906,13 +1908,13 @@ impl From<(::half::f16, ::half::f16)> for f16_f16 {
 #[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct f16_f16_f16 {
-    pub d0: ::half::f16,
-    pub d1: ::half::f16,
-    pub d2: ::half::f16,
+    pub d0: half::f16,
+    pub d1: half::f16,
+    pub d2: half::f16,
 }
 
 impl f16_f16_f16 {
-    pub fn new(d0: ::half::f16, d1: ::half::f16, d2: ::half::f16) -> f16_f16_f16 {
+    pub fn new(d0: half::f16, d1: half::f16, d2: half::f16) -> f16_f16_f16 {
         f16_f16_f16 { d0, d1, d2 }
     }
 
@@ -1934,8 +1936,8 @@ impl f16_f16_f16 {
     }
 }
 
-impl From<(::half::f16, ::half::f16, ::half::f16)> for f16_f16_f16 {
-    fn from(other: (::half::f16, ::half::f16, ::half::f16)) -> Self {
+impl From<(half::f16, half::f16, half::f16)> for f16_f16_f16 {
+    fn from(other: (half::f16, half::f16, half::f16)) -> Self {
         f16_f16_f16::new(other.0, other.1, other.2)
     }
 }
@@ -1945,18 +1947,18 @@ impl From<(::half::f16, ::half::f16, ::half::f16)> for f16_f16_f16 {
 #[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct f16_f16_f16_f16 {
-    pub d0: ::half::f16,
-    pub d1: ::half::f16,
-    pub d2: ::half::f16,
-    pub d3: ::half::f16,
+    pub d0: half::f16,
+    pub d1: half::f16,
+    pub d2: half::f16,
+    pub d3: half::f16,
 }
 
 impl f16_f16_f16_f16 {
     pub fn new(
-        d0: ::half::f16,
-        d1: ::half::f16,
-        d2: ::half::f16,
-        d3: ::half::f16,
+        d0: half::f16,
+        d1: half::f16,
+        d2: half::f16,
+        d3: half::f16,
     ) -> f16_f16_f16_f16 {
         f16_f16_f16_f16 { d0, d1, d2, d3 }
     }
@@ -1979,8 +1981,8 @@ impl f16_f16_f16_f16 {
     }
 }
 
-impl From<(::half::f16, ::half::f16, ::half::f16, ::half::f16)> for f16_f16_f16_f16 {
-    fn from(other: (::half::f16, ::half::f16, ::half::f16, ::half::f16)) -> Self {
+impl From<(half::f16, half::f16, half::f16, half::f16)> for f16_f16_f16_f16 {
+    fn from(other: (half::f16, half::f16, half::f16, half::f16)) -> Self {
         f16_f16_f16_f16::new(other.0, other.1, other.2, other.3)
     }
 }
@@ -2325,11 +2327,11 @@ impl i2_i10_i10_i10_rev {
 #[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct u2_u10_u10_u10_rev {
-    pub inner: ::vec_2_10_10_10::Vector,
+    pub inner: vec_2_10_10_10::Vector,
 }
 
 impl u2_u10_u10_u10_rev {
-    pub fn new(inner: ::vec_2_10_10_10::Vector) -> u2_u10_u10_u10_rev {
+    pub fn new(inner: vec_2_10_10_10::Vector) -> u2_u10_u10_u10_rev {
         u2_u10_u10_u10_rev { inner }
     }
 
@@ -2354,7 +2356,7 @@ impl u2_u10_u10_u10_rev {
 impl From<(f32, f32, f32, f32)> for u2_u10_u10_u10_rev {
     fn from(other: (f32, f32, f32, f32)) -> Self {
         u2_u10_u10_u10_rev {
-            inner: ::vec_2_10_10_10::Vector::new(other.0, other.1, other.2, other.3),
+            inner: vec_2_10_10_10::Vector::new(other.0, other.1, other.2, other.3),
         }
     }
 }
@@ -2426,11 +2428,11 @@ impl i2_i10_i10_i10_rev_float {
 #[derive(Copy, Clone, Debug)]
 #[repr(C, packed)]
 pub struct u2_u10_u10_u10_rev_float {
-    pub inner: ::vec_2_10_10_10::Vector,
+    pub inner: vec_2_10_10_10::Vector,
 }
 
 impl u2_u10_u10_u10_rev_float {
-    pub fn new(inner: ::vec_2_10_10_10::Vector) -> u2_u10_u10_u10_rev_float {
+    pub fn new(inner: vec_2_10_10_10::Vector) -> u2_u10_u10_u10_rev_float {
         u2_u10_u10_u10_rev_float { inner }
     }
 
@@ -2455,7 +2457,7 @@ impl u2_u10_u10_u10_rev_float {
 impl From<(f32, f32, f32, f32)> for u2_u10_u10_u10_rev_float {
     fn from(other: (f32, f32, f32, f32)) -> Self {
         u2_u10_u10_u10_rev_float {
-            inner: ::vec_2_10_10_10::Vector::new(other.0, other.1, other.2, other.3),
+            inner: vec_2_10_10_10::Vector::new(other.0, other.1, other.2, other.3),
         }
     }
 }

@@ -20,11 +20,11 @@ out vec4 Color;
 
 void main()
 {
-    vec3 normal = normalize(IN.Normal);
-    vec3 lightDirection = normalize(light.position - IN.Position);
-    float diff = max(dot(normal, lightDirection), 0.0);
-    vec3 diffuse = diff * light.color * light.strength;
-    vec3 color = diffuse * texture(TexFace, IN.Uv).rgb;
+    //vec3 normal = normalize(IN.Normal);
+    //vec3 lightDirection = normalize(light.position - IN.Position);
+    //float diff = max(dot(normal, lightDirection), 0.0);
+    //vec3 diffuse = diff * light.color * light.strength;
+    vec3 color = texture(TexFace, IN.Uv).rgb; // * diffuse
 
     Color = vec4(color, 1.0);
 }

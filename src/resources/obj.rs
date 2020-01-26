@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use tobj;
+use super::tobj;
 
 #[derive(Debug, Fail)]
 pub enum Error {

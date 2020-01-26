@@ -1,9 +1,12 @@
 use nalgebra as na;
+use super::MovementDirection;
 use super::Camera;
 
-pub struct SpectatorCamera {
+///FPS-Style camera, where front and right are always on the XZ plane
+pub struct FpsCamera {
     pub position: na::Point3<f32>,
-    pub target: na::Vector3<f32>,
+    target: na::Vector3<f32>,
+    front: na::Vector3<f32>,
     right: na::Vector3<f32>,
     up: na::Vector3<f32>,
     pub yaw: f32,
@@ -11,16 +14,17 @@ pub struct SpectatorCamera {
     projection: na::Perspective3<f32>,
 }
 
-impl SpectatorCamera {
+impl FpsCamera {
     pub fn new(
         aspect: f32,
         fov: f32,        
         znear: f32,
         zfar: f32,
     ) -> Self {
-        let mut cam = SpectatorCamera {
+        let mut cam = FpsCamera {
             position: na::Point3::new(0.0, 0.0, 0.0),
             target: na::Vector3::new(0.0, 0.0, -1.0),
+            front: na::Vector3::new(0.0, 0.0, -1.0),
             right: *na::Vector3::x_axis(),
             up: *na::Vector3::y_axis(),
             yaw: 90.0,
@@ -32,18 +36,27 @@ impl SpectatorCamera {
     }
 }
 
-impl Camera for SpectatorCamera {
+impl Camera for FpsCamera {
 
     fn update_aspect(&mut self, aspect: f32) {
         self.projection.set_aspect(aspect);
     }
 
     fn update_vectors(&mut self) {
-        let front = na::Vector3::new(
-            self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
-            self.pitch.to_radians().sin(),
-            self.yaw.to_radians().sin() * self.pitch.to_radians().cos());
-        self.target = na::Matrix::normalize(&front);
+        self.front = na::Matrix::normalize(
+            &na::Vector3::new(
+                self.yaw.to_radians().cos(),
+                0.0,
+                self.yaw.to_radians().sin()
+            )
+        );
+        self.target = na::Matrix::normalize(
+            &na::Vector3::new(
+                self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
+                self.pitch.to_radians().sin(),
+                self.yaw.to_radians().sin() * self.pitch.to_radians().cos()
+            )
+        );
         self.right = na::Matrix::normalize(&na::Matrix::cross(&self.target, &na::Vector3::y_axis()));
         self.up = na::Matrix::normalize(&na::Matrix::cross(&self.right, &self.target));
     }
@@ -69,7 +82,7 @@ impl Camera for SpectatorCamera {
         self.yaw += xoffset;
         self.pitch -= yoffset;
         self.pitch = *na::partial_clamp(&self.pitch, &-89.0, &89.0).unwrap();
-        if self.yaw >= 360.{ self.yaw = 0.0; }
+        if self.yaw >= 360.0 { self.yaw = 0.0; }
 
         self.update_vectors();
     }
@@ -77,8 +90,8 @@ impl Camera for SpectatorCamera {
     fn process_movement(&mut self, direction: MovementDirection, movement_speed: f32) {
         let velocity = movement_speed;
         match direction {
-            MovementDirection::FORWARD => self.position.coords += self.target * velocity,
-            MovementDirection::BACKWARD => self.position.coords -= self.target * velocity,
+            MovementDirection::FORWARD => self.position.coords += self.front * velocity,
+            MovementDirection::BACKWARD => self.position.coords -= self.front * velocity,
             MovementDirection::LEFT => self.position.coords -= self.right * velocity,
             MovementDirection::RIGHT => self.position.coords += self.right * velocity,
         }

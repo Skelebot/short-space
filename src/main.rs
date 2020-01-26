@@ -1,10 +1,6 @@
 extern crate gl;
 extern crate sdl2;
 extern crate nalgebra;
-extern crate vec_2_10_10_10;
-extern crate half;
-extern crate image;
-extern crate tobj;
 extern crate floating_duration;
 #[macro_use] extern crate render_gl_derive;
 #[macro_use] extern crate failure;
@@ -13,26 +9,25 @@ mod render_gl;
 mod camera;
 mod resources;
 mod input;
-mod light;
-mod entity;
 mod debug;
-mod model;
 mod settings;
 mod game_state;
-mod scene;
+mod physics;
+mod networking;
+mod world;
 
 use settings::GameSettings;
 use game_state::GameState;
-use scene::Scene;
 use failure::err_msg;
 use crate::resources::Resources;
 use std::path::Path;
 use debug::failure_to_string;
 use std::time::Instant;
 use nalgebra as na;
-use camera::FpsCamera;
+use camera::{FpsCamera, Camera};
 use floating_duration::TimeAsFloat;
 use input::Input;
+use world::entity::Entity;
 
 fn main() {
     if let Err(e) = run() {
@@ -85,25 +80,32 @@ fn run() -> Result<(), failure::Error> {
     }
     //--------------------
 
-    let mut camera = FpsCamera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
-    let mut game_state = GameState::new(&mut camera);
-    let scene = Scene::new(&res, &gl, settings.debug)?;
-    game_state.active_scene = Some(&scene);
+    let camera = FpsCamera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
+    let mut scene = world::Scene::new(&res, &gl, settings.debug, camera)?;
+    let mut game_state = GameState::new(&mut scene);
 
     let mut input = Input::new(settings.mouse_sensitivity, settings.movement_speed);
-    
-    let mut time = Instant::now();
 
+    //let mut serv_con = networking::ServerConnection::new("127.0.0.1:28685");
+    //serv_con.connect("28686")?;
+
+    //let packet = networking::serializer::create_client_packet(
+    //    input.create_input_message(), None);
+
+    //serv_con.send_data(&packet[..])?;
+        
+    game_state.active_scene.physics_step()?;
     //------------------------------
     // main loop
     //------------------------------
+    let mut time = Instant::now();
     let mut event_pump = sdl.event_pump().map_err(err_msg)?;
     'main: loop {
 
         let delta = time.elapsed().as_fractional_secs() as f32;
         time = Instant::now();
 
-        //handle input
+        //---INPUT---
         for event in event_pump.poll_iter() {
             match event {
                 sdl2::event::Event::Quit { .. } => break 'main,
@@ -112,17 +114,27 @@ fn run() -> Result<(), failure::Error> {
                     ..
                 } => {
                     viewport.update_size(w, h);
-                    game_state.active_camera.update_aspect(viewport.get_aspect());
+                    game_state.active_scene.atlas.camera.update_aspect(viewport.get_aspect());
                     viewport.set_used(&gl);
                 },
                 e => input.handle_event(&e, &mut game_state, delta),
             }
         }
-        input.update(&mut game_state, delta);
-
+        input.update(&mut game_state, &settings, delta);
         // release mouse cursor
         sdl.mouse().set_relative_mouse_mode(!game_state.in_menu);
 
+        //Check for incoming packets
+        let delta_debug = (time.elapsed().as_fractional_secs() as f32, delta);
+
+        //---PHYSICS---
+        //println!("{:?}", game_state.active_scene.atlas.position);
+        game_state.active_scene.physics_step()?;
+        
+        let delta_debug = (time.elapsed().as_fractional_secs() as f32, delta_debug.0, delta_debug.1);
+        //Send packets to server
+
+        //---RENDER---
         //TODO: Move somewhere
         unsafe {
             gl.Enable(gl::CULL_FACE);
@@ -130,21 +142,32 @@ fn run() -> Result<(), failure::Error> {
             gl.Enable(gl::DEPTH_TEST);
         }
 
+        let camera = &game_state.active_scene.atlas.camera;
+
         //clear the color buffer
         color_buffer.clear(&gl);
-        for entity in game_state.active_scene.unwrap().entities.iter() {
+        for entity in game_state.active_scene.entities.iter() {
             entity.render(
                 &gl,
-                &game_state.active_camera.get_view_matrix(),
-                &game_state.active_camera.get_projection_matrix(),
-                &game_state.active_camera.get_position(),
-                &game_state.active_scene.unwrap().lights,
+                &camera.get_view_matrix(),
+                &camera.get_projection_matrix(),
+                &na::Point3::from(camera.get_position().translation.vector),
+            );
+        }
+        if let Some(debug_arrow) = &mut game_state.active_scene.debug_arrow {
+            debug_arrow.render(
+                &gl,
+                &camera.get_view_matrix(),
+                &camera.get_projection_matrix(),
+                &na::Point3::from(camera.get_position().translation.vector),
             );
         }
 
+        let delta_debug = (time.elapsed().as_fractional_secs() as f32, delta_debug.0, delta_debug.1, delta_debug.2);
+        //println!("delta: {:#?}", delta_debug);
         window.gl_swap_window();
         unsafe {
-            gl.Finish();
+        //    gl.Finish();
         }
     }
 

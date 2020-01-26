@@ -1,18 +1,15 @@
-use camera::Camera;
-use scene::Scene;
+use world::Scene;
 
 pub struct GameState<'a> {
     pub in_menu: bool,
-    pub active_camera: &'a mut dyn Camera,
-    pub active_scene: Option<&'a Scene>,
+    pub active_scene: &'a mut Scene,
 }
 
 impl GameState<'_>{
-    pub fn new<'a>(active_camera: &'a mut dyn Camera) -> GameState {
+    pub fn new<'a>(active_scene: &'a mut Scene) -> GameState<'a> {
         GameState {
             in_menu: false,
-            active_camera: active_camera,
-            active_scene: None
+            active_scene: active_scene,
         }
     }
 }

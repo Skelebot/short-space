@@ -1,4 +1,5 @@
-use image;
+extern crate image;
+extern crate tobj;
 use std::ffi;
 use std::fs;
 use std::io::Read;
@@ -30,6 +31,7 @@ impl Resources {
         })
     }
 
+    #[allow(dead_code)]
     pub fn from_exe_path() -> Result<Resources, Error> {
         Resources::from_relative_exe_path(Path::new(""))
     }
@@ -49,12 +51,14 @@ impl Resources {
         Ok(unsafe { ffi::CString::from_vec_unchecked(buffer) })
     }
 
+    #[allow(dead_code)]
     pub fn load_rgb_image(&self, resource_name: &str) -> Result<image::RgbImage, Error> {
         let img = image::open(resource_name_to_path(&self.root_path, resource_name))?;
 
         Ok(img.to_rgb())
     }
 
+    #[allow(dead_code)]
     pub fn load_rgba_image(&self, resource_name: &str) -> Result<image::RgbaImage, Error> {
         let img = image::open(resource_name_to_path(&self.root_path, resource_name))?;
 

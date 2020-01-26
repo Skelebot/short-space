@@ -1,0 +1,23 @@
+struct Vec3 {
+  x:float;
+  y:float;
+  z:float;
+}
+
+table InputBuffer {
+  keeb_buf:[ubyte];
+  mouse_delta:Vec3;
+}
+
+table ReliableMessage {
+  id:uint;
+  type_:uint;
+  data:[ubyte];
+}
+
+table ClientPacket {
+  reliable:[ReliableMessage];
+  unreliable:InputBuffer;
+}
+
+root_type ClientPacket;

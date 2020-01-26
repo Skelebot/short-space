@@ -1,3 +1,17 @@
+//movement parameters
+pub const PM_STOPSPEED: f32 = 200.0;
+pub const PM_DUCKSCALE: f32 = 0.25;
+pub const PM_ACCELERATE: f32 = 8.0;
+pub const PM_AIRACCELERATE: f32 = 3.0;
+pub const PM_FRICTION: f32 = 1.5;
+pub const JUMP_VELOCITY: f32 = 10.0;
+//const PM_FLYFRICTION: f32 = 3.0;
+
+pub const VIEW_HEIGHT: f32 = 0.8;
+pub const DUCK_HEIGHT: f32 = 0.4;
+pub const MAX_ACCEL: f32 = 320.0;
+
+pub const MIN_WALK_NORMAL: f32 = 0.4;
 
 pub struct GameSettings {
     pub debug: bool,
@@ -12,8 +26,8 @@ impl Default for GameSettings {
     fn default() -> Self {
         GameSettings {
             debug: false,
-            movement_speed: 8.0,
-            mouse_sensitivity: 8.0,
+            movement_speed: 1.0,
+            mouse_sensitivity: 0.1,
             vsync: false,
             window_width: 800,
             window_height: 600,

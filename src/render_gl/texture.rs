@@ -37,7 +37,7 @@ impl Texture {
     ///Set a texture unit as active before binding a texture
     ///There is a minimum of 16 texture units, defined in order
     ///from GL_TEXTURE0 to GL_TEXTURE15
-    pub fn active_texture_unit(gl: &gl::Gl, texture_unit: u32) {
+    pub fn activate_texture_unit(gl: &gl::Gl, texture_unit: u32) {
         unsafe {
             gl.ActiveTexture(gl::TEXTURE0 + texture_unit);
         }
@@ -56,9 +56,7 @@ impl Texture {
     }
 
     pub fn bind_at(&self, index: u32) {
-        unsafe {
-            self.gl.ActiveTexture(gl::TEXTURE0 + index);
-        }
+        Self::activate_texture_unit(&self.gl, index);
         self.bind();
     }
 }

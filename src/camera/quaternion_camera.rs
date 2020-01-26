@@ -40,8 +40,10 @@ impl Camera for FpsCamera {
             na::Point3::from(
             self.position.translation.vector);
         let target: na::Point3<f32> = 
-            self.position
-            * na::Point3::new(0.0, 0.0, -1.0);
+            self.position.translation
+            * self.position.rotation
+            * na::Translation3::from(-na::Vector3::z())
+            * na::Point3::origin();
         na::Matrix::look_at_rh(&position, &target, &na::Vector3::y_axis())
     }
 
@@ -51,13 +53,5 @@ impl Camera for FpsCamera {
 
     fn get_vp_matrix(&self) -> na::Matrix4<f32> {
         self.projection.into_inner() * self.get_view_matrix()
-    }
-
-    fn get_position(&self) -> na::Isometry3<f32> {
-        self.position
-    }
-
-    fn set_position(&mut self, position: na::Isometry3<f32>) {
-        self.position = position;
     }
 }

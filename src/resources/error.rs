@@ -1,5 +1,5 @@
 use super::obj;
-use image;
+use super::image;
 use std::io;
 
 #[derive(Debug, Fail)]

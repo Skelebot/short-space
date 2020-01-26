@@ -21,8 +21,8 @@ pub enum Error {
     CompileError { name: String, message: String },
     #[fail(display = "Failed to link program {}: {}", name, message)]
     LinkError { name: String, message: String },
-    #[fail(display = "Failed to find uniform location: {}", name)]
-    UniformLocationNotFound { name: String },
+//    #[fail(display = "Failed to find uniform location: {}", name)]
+//    UniformLocationNotFound { name: String },
 }
 
 pub struct Program {
@@ -99,7 +99,7 @@ impl Program {
             id: program_id,
         })
     }
-
+    #[allow(dead_code)]
     pub fn id(&self) -> gl::types::GLuint {
         self.id
     }
@@ -122,6 +122,7 @@ impl Program {
         Some(location)
     }
 
+    #[allow(dead_code)]
     pub fn set_uniform_matrix_4fv(&self, location: i32, value: &na::Matrix4<f32>) {
         unsafe {
             self.gl.UniformMatrix4fv(
@@ -133,24 +134,28 @@ impl Program {
         }
     }
 
+    #[allow(dead_code)]
     pub fn set_uniform_3f(&self, location: i32, value: &na::Vector3<f32>) {
         unsafe {
             self.gl.Uniform3f(location, value.x, value.y, value.z);
         }
     }
 
+    #[allow(dead_code)]
     pub fn set_uniform_4f(&self, location: i32, value: &na::Vector4<f32>) {
         unsafe {
             self.gl.Uniform4f(location, value.x, value.y, value.z, value.w);
         }
     }
 
+    #[allow(dead_code)]
     pub fn set_uniform_1i(&self, location: i32, index: i32) {
         unsafe {
             self.gl.Uniform1i(location, index);
         }
     }
     
+    #[allow(dead_code)]
     pub fn set_uniform_1f(&self, location: i32, value: f32) {
         unsafe{
             self.gl.Uniform1f(location, value);
@@ -202,10 +207,12 @@ impl Shader {
         Ok(Shader { gl: gl.clone(), id })
     }
 
+    #[allow(dead_code)]
     pub fn from_vert_source(gl: &gl::Gl, source: &CStr) -> Result<Shader, String> {
         Shader::from_source(gl, source, gl::VERTEX_SHADER)
     }
 
+    #[allow(dead_code)]
     pub fn from_frag_source(gl: &gl::Gl, source: &CStr) -> Result<Shader, String> {
         Shader::from_source(gl, source, gl::FRAGMENT_SHADER)
     }

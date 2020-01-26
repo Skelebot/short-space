@@ -1,9 +1,9 @@
+extern crate ncollide3d as nc;
 use failure;
 use gl;
 use nalgebra as na;
 use crate::render_gl::{self, buffer, data};
 use crate::resources::Resources;
-use crate::light::PointLight;
 
 #[derive(VertexAttribPointers, Copy, Clone, Debug)]
 #[repr(C, packed)]
@@ -26,7 +26,8 @@ pub struct Model {
     _vbo: buffer::ArrayBuffer,
     _ebo: buffer::ElementArrayBuffer,
     index_count: i32,
-    vao: buffer::VertexArray
+    vao: buffer::VertexArray,
+    pub mesh: tobj::Mesh,
 }
 
 impl Model {
@@ -82,9 +83,11 @@ impl Model {
             .map(|((p, n), t)| Vertex {
                 pos: (p[0], p[1], p[2]).into(),
                 normal: (n[0], n[1], n[2]).into(),
-                uv: (t[0], -t[1]).into(), }).collect::<Vec<_>>();
+                uv: (t[0], -t[1]).into(), })
+            .collect::<Vec<_>>();
+        
 
-        let ebo_data = mesh.indices;
+        let ebo_data = mesh.indices.clone();
 
         let vbo = buffer::ArrayBuffer::new(gl);
         vbo.bind();
@@ -117,6 +120,7 @@ impl Model {
             _ebo: ebo,
             index_count: ebo_data.len() as i32,
             vao,
+            mesh
         })
     }
 
@@ -127,17 +131,16 @@ impl Model {
         proj_matrix: &na::Matrix4<f32>,
         camera_pos: &na::Point3<f32>,
         transformation: &na::Isometry3<f32>,
-        lights: &Vec<PointLight>
     ) {
         self.program.set_used();
         //bind lights
         //TODO: add support for more than one light
-        let lpos = self.program.get_uniform_location("light.position");
-        let lcol = self.program.get_uniform_location("light.color");
-        let lstr = self.program.get_uniform_location("light.strength");
-        self.program.set_uniform_3f(lpos.unwrap(), &lights[0].position.coords);
-        self.program.set_uniform_3f(lcol.unwrap(), &lights[0].color);
-        self.program.set_uniform_1f(lstr.unwrap(), lights[0].strength);
+        //let lpos = self.program.get_uniform_location("light.position");
+        //let lcol = self.program.get_uniform_location("light.color");
+        //let lstr = self.program.get_uniform_location("light.strength");
+        //self.program.set_uniform_3f(lpos.unwrap(), &lights[0].position.coords);
+        //self.program.set_uniform_3f(lcol.unwrap(), &lights[0].color);
+        //self.program.set_uniform_1f(lstr.unwrap(), lights[0].strength);
 
         let mut texture_bind = None;
         if let (Some(loc), &Some(ref texture)) = (self.tex_face_location, &self.texture) {
@@ -171,6 +174,17 @@ impl Model {
         if let Some(tex) = texture_bind {
             tex.unbind();
         }
+    }
+
+    pub fn get_trimesh(&self) -> nc::shape::TriMesh<f32> {
+        let points = self.mesh.positions.chunks(3)
+            .map(|p| na::Point3::new(p[0], p[1], p[2]))
+            .collect::<Vec<_>>();
+        let indices = self.mesh.indices.chunks(3)
+            .map(|p| na::Point3::new(p[0] as usize, p[1] as usize, p[2] as usize))
+            .collect::<Vec<_>>();
+
+        nc::shape::TriMesh::new(points, indices, None)
     }
 }
 

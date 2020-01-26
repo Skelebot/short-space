@@ -12,6 +12,7 @@ impl ColorBuffer {
         }
     }
 
+    #[allow(dead_code)]
     pub fn update_color(&mut self, color: na::Vector3<f32>) {
         self.color = color.fixed_resize::<na::U4, na::U1>(1.0);
     }

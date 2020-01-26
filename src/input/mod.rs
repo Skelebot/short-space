@@ -1,19 +1,14 @@
 extern crate sdl2;
+extern crate nphysics3d;
 use sdl2::event::Event;
 
 use crate::game_state::GameState;
+use crate::settings::GameSettings;
 
 mod keyboard_input;
 mod mouse_input;
-use self::keyboard_input::KeyboardInput;
-use self::mouse_input::MouseInput;
-
-pub enum MovementDirection {
-    FORWARD,
-    BACKWARD,
-    LEFT,
-    RIGHT,
-}
+pub use self::keyboard_input::KeyboardInput;
+pub use self::mouse_input::MouseInput;
 
 pub struct Input {
     keyboard_input: KeyboardInput,
@@ -39,12 +34,14 @@ impl Input {
             Event::KeyUp { scancode: Some(scancode), .. } => self.keyboard_input.handle_key_up(&scancode),
             Event::MouseMotion { xrel, yrel, .. }
             => self.mouse_input.handle_mouse_motion(xrel, yrel, game_state, self.mouse_sensitivity, delta),
+            Event::MouseButtonDown { mouse_btn, .. } => self.mouse_input.handle_button_down(mouse_btn),
+            Event::MouseButtonUp { mouse_btn, .. } => self.mouse_input.handle_button_up(mouse_btn),
             _ => (),
         }
     }
 
     ///Called every frame, after handle_event() has been called
-    pub fn update(&mut self, game_state: &mut GameState, delta: f32) {
-        self.keyboard_input.update(game_state, self.movement_speed, delta);
+    pub fn update(&mut self, game_state: &mut GameState, settings: &GameSettings, delta: f32) {
+        self.keyboard_input.update(game_state, settings, delta);
     }
 }
