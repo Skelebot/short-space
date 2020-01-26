@@ -39,7 +39,7 @@ fn run() -> Result<(), failure::Error> {
 
     let mut settings: GameSettings = Default::default(); 
     settings.debug = false;
-    settings.vsync = true;
+    settings.vsync = false;
  
     //--------------------
     let res = Resources::from_relative_exe_path(Path::new("assets")).unwrap();
