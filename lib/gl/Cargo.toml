@@ -1,11 +1,11 @@
 [package]
 name = "gl"
 version = "0.1.0"
-authors = ["Nerijus Arlauskas <nercury@gmail.com>"]
+authors = ["Skelebot <antonisimka.8@gmail.com>"]
 
 [build-dependencies]
+# TODO: Update this?
 gl_generator = "0.9"
-gl_generator_profiling_struct = "0.1"
+gl_generator_profiling_struct = "0.1.2"
 
 [features]
-debug = []

@@ -36,10 +36,6 @@ impl Physics {
         }
     }
 
-    pub fn add_ground(&mut self) -> DefaultBodyHandle {
-        self.bodies.insert(np::object::Ground::new())
-    }
-
     pub fn add_rigid_body(&mut self, rigidbody: np::object::RigidBody<f32>) -> DefaultBodyHandle {
         self.bodies.insert(rigidbody)
     }
@@ -48,6 +44,7 @@ impl Physics {
         self.colliders.insert(collider)
     }
 
+    #[allow(dead_code)]
     pub fn get_body(&self, handle: DefaultBodyHandle) -> Result<&dyn np::object::Body<f32>, Error> {
         match self.bodies.get(handle) {
             Some(body) => Ok(body),
@@ -55,6 +52,7 @@ impl Physics {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_rigid_body(&self, handle: DefaultBodyHandle) -> Result<&np::object::RigidBody<f32>, Error> {
         match self.bodies.rigid_body(handle) {
             Some(rigid_body) => Ok(rigid_body),
@@ -62,6 +60,7 @@ impl Physics {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_rigid_body_mut(&mut self, handle: DefaultBodyHandle) -> Result<&mut np::object::RigidBody<f32>, Error> {
         match self.bodies.rigid_body_mut(handle) {
             Some(rigid_body) => Ok(rigid_body),
@@ -69,6 +68,7 @@ impl Physics {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_collider(&self, handle: DefaultColliderHandle) -> Result<&np::object::Collider<f32, DefaultBodyHandle>, Error> {
         match self.colliders.get(handle) {
             Some(collider) => Ok(collider),
@@ -76,6 +76,7 @@ impl Physics {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_collider_mut(&mut self, handle: DefaultColliderHandle) -> Result<&mut np::object::Collider<f32, DefaultBodyHandle>, Error> {
         match self.colliders.get_mut(handle) {
             Some(collider) => Ok(collider),

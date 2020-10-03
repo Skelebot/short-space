@@ -1,15 +1,15 @@
-use world::Scene;
+//use world::Scene;
 
-pub struct GameState<'a> {
-    pub in_menu: bool,
-    pub active_scene: &'a mut Scene,
+pub struct GameState {
+    pub should_exit: bool,
+    pub paused: bool,
 }
 
-impl GameState<'_>{
-    pub fn new<'a>(active_scene: &'a mut Scene) -> GameState<'a> {
+impl GameState{
+    pub fn new() -> GameState {
         GameState {
-            in_menu: false,
-            active_scene: active_scene,
+            should_exit: false,
+            paused: false,
         }
     }
 }

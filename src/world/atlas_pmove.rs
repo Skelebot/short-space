@@ -26,7 +26,7 @@ pub fn pmove (
     if keyboard_input.jump { movement.y += 1.0; }
 
     check_duck(atlas, &movement, physics);
-    let normal = ground_trace(atlas, physics);
+    let normal = ground_trace_ray(atlas, physics);
     if movement.y < 1.0 {
         //not holding jump
         *jump_held = false;
@@ -45,6 +45,9 @@ pub fn pmove (
     //atlas.footsteps()
     //TODO: Weapons
     //pm_weapon()
+    let gravity = na::Vector3::new(0.0, -0.1, 0.0);
+    atlas.velocity.linear += gravity;
+    //atlas.position.translation.vector += atlas.velocity.linear*0.1;
 }
 
 ///Handle the movement when player is touching the ground
@@ -66,6 +69,7 @@ pub fn walk_move(atlas: &mut Atlas, movement: &na::Vector3<f32>, jump_held: &mut
     atl_forward.try_normalize_mut(0.0);
 
     let mut wishdir = atl_forward.clone();
+
     let mut wishspeed = wishdir.try_normalize_mut(0.0).unwrap_or(0.0);
 
     //clamp the speed lower if ducking
@@ -73,7 +77,7 @@ pub fn walk_move(atlas: &mut Atlas, movement: &na::Vector3<f32>, jump_held: &mut
         wishspeed *= PM_DUCKSCALE;
     }
 
-    pm_accelerate(atlas, wishdir, PM_ACCELERATE, delta);
+    pm_accelerate(atlas, wishdir, PM_ACCELERATE * wishspeed, delta);
 
     let vel = na::Matrix::norm(&atlas.velocity.linear);
     //slide along the ground plane ???
@@ -100,7 +104,7 @@ pub fn air_move(atlas: &mut Atlas, movement: &na::Vector3<f32>, _physics: &mut P
 
     atl_forward.try_normalize_mut(0.0);
 
-    let mut wishdir = atl_forward.clone();
+    let wishdir = atl_forward.clone();
     //let mut wishspeed = wishdir.try_normalize_mut(0.0).unwrap_or(0.0);
 
     pm_accelerate(atlas, wishdir, PM_AIRACCELERATE, delta);
@@ -205,6 +209,37 @@ pub fn clip_velocity(/*in_: &na::Vector3<f32>,*/ normal: &na::Vector3<f32>, out:
     let change: na::Vector3<f32> = normal * backoff;
     *out = *out - change;
     //out = in_ - change;
+}
+
+pub fn ground_trace_ray(atlas: &mut Atlas, physics: &mut Physics) -> Option<na::Vector3<f32>> {
+    let mut touching_ground = false;
+    let mut normal: Option<na::Vector3<f32>> = None;
+    let orig = na::Point3::from(atlas.position.translation.vector);
+    let dir = na::Vector3::new(0.0, -1.0, 0.0);
+    let ray = nc::query::Ray::new(orig, dir);
+
+    for collider in physics.colliders.iter() {
+        let shape = collider.1.shape();
+        let intersection = shape.as_ray_cast().expect("Shape does not implement RayCast")
+            .toi_and_normal_with_ray(&na::Isometry3::identity(), &ray, false);
+        if let Some(intersec) = intersection {
+            touching_ground = true;
+            normal = Some(intersec.normal);
+            println!("normal: {}", intersec.normal.y);
+            if intersec.normal.y < MIN_WALK_NORMAL || intersec.toi > 1.0 {
+                atlas.grounded = false;
+                atlas.state = AtlasState::AIRBORNE;
+                return None
+            }
+        }
+    }
+    if !touching_ground {
+        atlas.grounded = false;
+        atlas.state = AtlasState::AIRBORNE;
+    }
+    atlas.grounded = true;
+    atlas.state = AtlasState::WALKING;
+    return normal;
 }
 
 ///Check if the player is standing on the ground and change player's state accordingly.

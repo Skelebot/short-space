@@ -1,90 +1,75 @@
-extern crate gl;
-extern crate sdl2;
-extern crate nalgebra;
-extern crate floating_duration;
-#[macro_use] extern crate render_gl_derive;
-#[macro_use] extern crate failure;
+#[macro_use]
+extern crate render_gl_derive;
 
-mod render_gl;
-mod camera;
-mod resources;
+mod graphics;
+
+mod asset_loader;
 mod input;
-mod debug;
 mod settings;
 mod game_state;
-mod physics;
-mod networking;
+//mod physics;
+//mod networking;
 mod world;
+mod time;
 
-use settings::GameSettings;
-use game_state::GameState;
-use failure::err_msg;
-use crate::resources::Resources;
-use std::path::Path;
-use debug::failure_to_string;
-use std::time::Instant;
 use nalgebra as na;
-use camera::{FpsCamera, Camera};
-use floating_duration::TimeAsFloat;
-use input::Input;
-use world::entity::Entity;
+use settings::GameSettings;
+use anyhow::{Result, Error};
+use legion::{World, Resources, Schedule};
 
-fn main() {
-    if let Err(e) = run() {
-        println!("{}", failure_to_string(e));
-    }
+use game_state::GameState;
+
+use crate::asset_loader::AssetLoader;
+use std::path::Path;
+
+fn main() -> Result<(), anyhow::Error> {
+    run()
 }
 
-fn run() -> Result<(), failure::Error> {
+fn run() -> Result<(), anyhow::Error> {
 
+    // Create the Legion world (where entities live)
+    let mut world = World::default();
+    // Create the resource storage
+    let mut resources = Resources::default();
+
+    // Create settings for the game
+    // TODO: Read settings from a file
     let mut settings: GameSettings = Default::default(); 
     settings.debug = false;
-    settings.vsync = false;
- 
-    //--------------------
-    let res = Resources::from_relative_exe_path(Path::new("assets")).unwrap();
+    settings.vsync = true;
 
-    let sdl = sdl2::init().map_err(err_msg)?;
-    let video_subsystem = sdl.video().map_err(err_msg)?;
+    // Create the asset loader
+    let asset_loader = AssetLoader::from_relative_exe_path(Path::new("assets")).unwrap();
+
+    // Create the game state tracking Resource
+    let game_state = GameState::new();
+
+    // Create the frame-delta tracking Resource
+    let time = time::Time::new();
+
+    // Insert the resources
+    resources.insert(settings);
+    resources.insert(asset_loader);
+    resources.insert(game_state);
+    resources.insert(time);
     
-    let gl_attr = video_subsystem.gl_attr();
-    gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-    gl_attr.set_context_version(4, 5);
+    graphics::setup_window(&mut world, &mut resources)?;
+    setup_scene(&mut world, &mut resources)?;
 
-    let window = video_subsystem
-        .window("Game", settings.window_width as u32, settings.window_height as u32)
-        .opengl()
-        .resizable()
-        .build()?;
+    // Create the schedule that will be executed every frame
+    let mut schedule = Schedule::builder()
+        .add_thread_local_fn(time::update_time)
+        .add_thread_local_fn(input::handle_input)
+        .flush()
+        .add_thread_local(graphics::render_prepare_system())
+        .add_thread_local(graphics::render_system())
+        .add_thread_local(graphics::render_finish_system())
+        .build();
 
-    let _gl_context = window.gl_create_context().map_err(err_msg)?;
-    let gl = gl::Gl::load_with(|s| {
-        video_subsystem.gl_get_proc_address(s) as *const std::os::raw::c_void
-    });
-
-    if settings.vsync {
-        video_subsystem.gl_set_swap_interval(1).unwrap();
-    } else {
-        video_subsystem.gl_set_swap_interval(0).unwrap();
-    }
-
-    let mut viewport = render_gl::Viewport::for_window(settings.window_width, settings.window_height);
-    viewport.set_used(&gl);
-    let color_buffer = render_gl::ColorBuffer::from_color(na::Vector3::new(0.0, 0.0, 0.0));
-    color_buffer.set_used(&gl);
-    unsafe {
-        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
-        gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
-    }
-    //--------------------
-
-    let camera = FpsCamera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
-    let mut scene = world::Scene::new(&res, &gl, settings.debug, camera)?;
-    let mut game_state = GameState::new(&mut scene);
-
-    let mut input = Input::new(settings.mouse_sensitivity, settings.movement_speed);
+    // DO NOT USE
+    //let font_options = render_gl::bitmap_font::BitmapFontOptions::new(14, 26, 4, "fonts/cherry-13x2.bmp", "fonts/shaders/font");
+    //let font = render_gl::bitmap_font::BitmapFont::new(&gl, &res, font_options, viewport.w as u32, viewport.h as u32)?;
 
     //let mut serv_con = networking::ServerConnection::new("127.0.0.1:28685");
     //serv_con.connect("28686")?;
@@ -94,82 +79,59 @@ fn run() -> Result<(), failure::Error> {
 
     //serv_con.send_data(&packet[..])?;
         
-    game_state.active_scene.physics_step()?;
     //------------------------------
     // main loop
     //------------------------------
-    let mut time = Instant::now();
-    let mut event_pump = sdl.event_pump().map_err(err_msg)?;
-    'main: loop {
-
-        let delta = time.elapsed().as_fractional_secs() as f32;
-        time = Instant::now();
-
-        //---INPUT---
-        for event in event_pump.poll_iter() {
-            match event {
-                sdl2::event::Event::Quit { .. } => break 'main,
-                sdl2::event::Event::Window {
-                    win_event: sdl2::event::WindowEvent::Resized(w, h),
-                    ..
-                } => {
-                    viewport.update_size(w, h);
-                    game_state.active_scene.atlas.camera.update_aspect(viewport.get_aspect());
-                    viewport.set_used(&gl);
-                },
-                e => input.handle_event(&e, &mut game_state, delta),
-            }
-        }
-        input.update(&mut game_state, &settings, delta);
-        // release mouse cursor
-        sdl.mouse().set_relative_mouse_mode(!game_state.in_menu);
-
-        //Check for incoming packets
-        let delta_debug = (time.elapsed().as_fractional_secs() as f32, delta);
-
-        //---PHYSICS---
-        //println!("{:?}", game_state.active_scene.atlas.position);
-        game_state.active_scene.physics_step()?;
-        
-        let delta_debug = (time.elapsed().as_fractional_secs() as f32, delta_debug.0, delta_debug.1);
-        //Send packets to server
-
-        //---RENDER---
-        //TODO: Move somewhere
-        unsafe {
-            gl.Enable(gl::CULL_FACE);
-            gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-            gl.Enable(gl::DEPTH_TEST);
-        }
-
-        let camera = &game_state.active_scene.atlas.camera;
-
-        //clear the color buffer
-        color_buffer.clear(&gl);
-        for entity in game_state.active_scene.entities.iter() {
-            entity.render(
-                &gl,
-                &camera.get_view_matrix(),
-                &camera.get_projection_matrix(),
-                &na::Point3::from(camera.get_position().translation.vector),
-            );
-        }
-        if let Some(debug_arrow) = &mut game_state.active_scene.debug_arrow {
-            debug_arrow.render(
-                &gl,
-                &camera.get_view_matrix(),
-                &camera.get_projection_matrix(),
-                &na::Point3::from(camera.get_position().translation.vector),
-            );
-        }
-
-        let delta_debug = (time.elapsed().as_fractional_secs() as f32, delta_debug.0, delta_debug.1, delta_debug.2);
-        //println!("delta: {:#?}", delta_debug);
-        window.gl_swap_window();
-        unsafe {
-        //    gl.Finish();
-        }
+    while !resources.get::<GameState>()
+        .ok_or(Error::msg("GameState not found"))?
+        .should_exit
+    {
+        // TODO: scheduled execution?
+        schedule.execute(&mut world, &mut resources);
     }
+
+    let gl = resources.get::<gl::Gl>()
+        .ok_or(Error::msg("Gl not found"))?;
+
+    // Destroy all things that need to be destroyed
+    use legion::IntoQuery;
+
+    let mut query = legion::Write::<graphics::model::Model>::query();
+
+    for model in query.iter_mut(&mut world) {
+        unsafe { model.destroy(&gl); }
+    }
+
+    Ok(())
+}
+
+use graphics::{model::Model, shader};
+fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
+    let loader = resources.get::<AssetLoader>()
+        .ok_or(Error::msg("AssetLoader not found"))?;
+
+    let gl = resources.get::<gl::Gl>()
+        .ok_or(Error::msg("Gl not found"))?;
+
+    let settings = resources.get::<GameSettings>()
+        .ok_or(Error::msg("Settings not found"))?;
+
+    let shader = shader::Program::from_res(&gl, &loader, "shaders/model")?;
+
+    // Create the map
+    let model = Model::new(
+        &loader, 
+        &gl, 
+        "models/skatepark.obj", 
+        &shader, 
+        settings.debug
+    )?;
+
+    // FIXME
+    //unsafe { shader.destroy(&gl); }
+
+    let pos = na::Isometry3::<f32>::identity();
+    world.push((model, pos));
 
     Ok(())
 }

@@ -16,6 +16,7 @@ pub trait Entity {
 pub struct Map {
     position: na::Isometry3<f32>,
     pub rb_handle: np::object::DefaultBodyHandle,
+    pub cl_handle: np::object::DefaultColliderHandle,
     pub model: Model,
 }
 
@@ -29,15 +30,16 @@ impl Map {
         let map_handle = physics.add_rigid_body(map_rb_desc.build());
         let map_collider = np::object::ColliderDesc::new(map_shape)
             .build(np::object::BodyPartHandle(map_handle.clone(), 0));
-        physics.add_collider(map_collider);
+        let cl_handle = physics.add_collider(map_collider);
         physics.get_rigid_body_mut(map_handle).unwrap().set_user_data(Some(Box::new(10)));
         Map {
             position: pos,
             rb_handle: map_handle,
+            cl_handle: cl_handle,
             model: model,
         }
     }
-}           
+} 
 
 impl Entity for Map {
     fn render(&self,gl: &gl::Gl,

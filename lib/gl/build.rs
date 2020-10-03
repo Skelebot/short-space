@@ -16,6 +16,7 @@ fn main() {
         (4, 5),
         Profile::Core,
         Fallbacks::All,
+        // TODO: Remove this?
         ["GL_NV_command_list"],
     );
 

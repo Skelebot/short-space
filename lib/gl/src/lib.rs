@@ -5,9 +5,10 @@ mod bindings {
 use std::ops::Deref;
 use std::rc::Rc;
 
-pub use crate::bindings::Gl as InnerGl;
 pub use crate::bindings::*;
 
+//pub use crate::bindings::Gl as InnerGl;
+/*
 #[derive(Clone)]
 pub struct Gl {
     inner: Rc<bindings::Gl>,
@@ -31,3 +32,4 @@ impl Deref for Gl {
         &self.inner
     }
 }
+*/

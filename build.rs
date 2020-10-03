@@ -5,11 +5,11 @@ use std::fs::{self, DirBuilder};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+/// A build script that automatically copies the assets/ directiory to the target dir
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     println!("Copied!");
-
 
     // locate executable path even if the project is in workspace
 

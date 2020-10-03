@@ -3,7 +3,7 @@ use world::entity::Entity;
 use world::entity::{Map, PhysicsEntity, DebugArrow};
 use world::atlas::Atlas;
 use physics::Physics;
-use resources::Resources;
+use assets::AssetLoader;
 use crate::render_gl::model::Model;
 use gl;
 use nalgebra as na;
@@ -18,7 +18,7 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(res: &Resources, gl: &gl::Gl, debug: bool, camera: FpsCamera) -> Result<Scene, Error> {
+    pub fn new(res: &AssetLoader, gl: &gl::Gl, debug: bool, camera: FpsCamera) -> Result<Scene, Error> {
         let mut physics = Physics::new(-20.0);
 
         let dice = PhysicsEntity::load_entity(
@@ -33,7 +33,7 @@ impl Scene {
         );
         
         let map = Map::load_map(
-            Model::new(&res, &gl, "models/warsztaty.obj", "shaders/model", debug)?,
+            Model::new(&res, &gl, "models/skatepark.obj", "shaders/model", debug)?,
             &mut physics
         );
         
