@@ -132,7 +132,7 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
         )?;
         let pos = na::Isometry3::<f32>::from_parts(
             na::Translation3::new(0.0, 0.0, 0.0),
-            na::UnitQuaternion::from_axis_angle(&na::Vector3::y_axis(), 0.0),
+            na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 0.0),
         );
         world.push((model, pos));
         // Create a box
@@ -143,9 +143,10 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
             &shader, 
             settings.debug
         )?;
+
         let pos = na::Isometry3::<f32>::from_parts(
-            na::Translation3::new(0.0, 3.0, 0.0),
-            na::UnitQuaternion::from_axis_angle(&na::Vector3::y_axis(), 0.0),
+            na::Translation3::new(0.0, -2.0, 3.0),
+            na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 20.0_f32.to_radians()),
         );
         world.push((model, pos));
     }
@@ -153,7 +154,7 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
     // Create the player
     let pos = na::Isometry3::<f32>::from_parts(
         na::Translation3::new(0.0, 5.0, 2.0),
-        na::UnitQuaternion::from_axis_angle(&na::Vector3::y_axis(), 0.0),
+        na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 0.0),
     );
     use nc::shape::{ShapeHandle, Capsule};
     let collider = physics::Collider::from(

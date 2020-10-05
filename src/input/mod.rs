@@ -148,20 +148,17 @@ fn handle_mouse_motion (xrel: i32, yrel: i32, camera: &mut Camera, delta: f32, s
 
     let xoffset = xrel as f32 * delta * settings.mouse_sensitivity;
     let yoffset = yrel as f32 * delta * settings.mouse_sensitivity;
-    let around_x = na::UnitQuaternion::from_axis_angle(
-        &na::Vector3::x_axis(), -yoffset);
-    let around_y = na::UnitQuaternion::from_axis_angle(
-        &na::Vector3::y_axis(), -xoffset);
 
-    let pos = 
-        na::Isometry3::from_parts(
-            camera.position.translation,
-            around_y
-            * camera.get_position().rotation
-            * around_x);
+    let xrot = na::UnitQuaternion::from_axis_angle(
+        &-na::Vector3::z_axis(), 
+        xoffset,
+    );
+    let yrot = na::UnitQuaternion::from_axis_angle(
+        &na::Vector3::y_axis(), 
+        yoffset,
+    );
 
-    camera.set_position(pos);
-
-    camera.position = 
-        camera.position * around_y;
+    camera.position.rotation = 
+        camera.position.rotation
+        * yrot * xrot;
 }

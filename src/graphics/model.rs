@@ -159,7 +159,14 @@ impl Model {
             self.shader_program.set_uniform_3f(&gl, loc, &camera_pos.coords);
         }
         let model_loc = self.shader_program.get_uniform_location(&gl, "Model").unwrap();
-        self.shader_program.set_uniform_matrix_4fv(&gl, model_loc, &transformation.to_homogeneous());
+        let real_transform =
+            transformation.translation
+            * transformation.rotation.to_rotation_matrix()
+            * na::UnitQuaternion::from_axis_angle(
+                &na::Vector::x_axis(), 90.0_f32.to_radians()
+            ).to_rotation_matrix();
+
+        self.shader_program.set_uniform_matrix_4fv(&gl, model_loc, &real_transform.to_homogeneous());
         self.vao.bind(&gl);
 
         unsafe {

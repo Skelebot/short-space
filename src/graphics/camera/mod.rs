@@ -18,7 +18,7 @@ impl Camera {
                 na::Vector3::repeat(0.0)
             ),
             na::UnitQuaternion::from_axis_angle(
-                &na::Vector3::y_axis(),
+                &na::Vector3::z_axis(),
                 0.0
             )
         );
@@ -35,12 +35,16 @@ impl Camera {
 
     pub fn get_view_matrix(&self) -> na::Matrix4<f32> {
         let position: na::Point3<f32> = 
-            na::Point3::from(
-            self.position.translation.vector);
+            self.position.translation.vector.into();
         let target: na::Point3<f32> = 
-            self.position
-            * na::Point3::new(0.0, 0.0, -1.0);
-        na::Matrix::look_at_rh(&position, &target, &na::Vector3::y_axis())
+            self.position.translation
+            * self.position.rotation
+            * na::Point3::new(1.0, 0.0, 0.0);
+        let up: na::Vector3<f32> = 
+            self.position.translation
+            * self.position.rotation
+            * na::Vector3::new(0.0, 0.0, 1.0);
+        na::Matrix::look_at_rh(&position, &target, &up)
     }
 
     pub fn get_projection_matrix(&self) -> na::Matrix4<f32> {
