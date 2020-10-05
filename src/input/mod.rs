@@ -1,46 +1,5 @@
 use nalgebra as na;
 
-//mod keyboard_input;
-//mod mouse_input;
-//pub use self::keyboard_input::KeyboardInput;
-//pub use self::mouse_input::MouseInput;
-
-/*
-pub struct Input {
-    keyboard_input: KeyboardInput,
-    mouse_input: MouseInput,
-    pub mouse_sensitivity: f32,
-    pub movement_speed: f32,
-}
-
-impl Input {
-    pub fn new(mouse_sensitivity: f32, movement_speed: f32) -> Self {
-        Input {
-            keyboard_input: KeyboardInput::new(),
-            mouse_input: MouseInput::new(),
-            mouse_sensitivity: mouse_sensitivity,
-            movement_speed: movement_speed,
-        }
-    }
-    
-    ///Called only when a sdl2 event happens
-    pub fn handle_event(&mut self, event: &sdl2::event::Event, game_state: &mut GameState, delta: f32) {
-        match *event {
-            Event::KeyDown { scancode: Some(scancode), .. } => self.keyboard_input.handle_key_down(&scancode, game_state),
-            Event::KeyUp { scancode: Some(scancode), .. } => self.keyboard_input.handle_key_up(&scancode),
-            Event::MouseMotion { xrel, yrel, .. }
-            => self.mouse_input.handle_mouse_motion(xrel, yrel, game_state, self.mouse_sensitivity, delta),
-            _ => (),
-        }
-    }
-
-    ///Called every frame, after handle_event() has been called
-    pub fn update(&mut self, game_state: &mut GameState, settings: &GameSettings, delta: f32) {
-        self.keyboard_input.update(game_state, settings, delta);
-    }
-}
-*/
-
 use crate::graphics::{Viewport, Camera};
 use crate::player::{Player, Atlas, PlayerState};
 use crate::time::Time;
@@ -51,12 +10,11 @@ use legion::{system, world::SubWorld, world::EntityStore};
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 
-
 // TODO: Key bindings (remove hardcoded Scancodes)
 /// Tracks which keys are pressed
 #[derive(Default, Debug)]
 pub struct InputState {
-    pub forward: bool, //W
+    pub forward: bool,
     pub backward: bool,
     pub right: bool,
     pub left: bool,
@@ -98,6 +56,7 @@ pub fn handle_input(
                         handle_mouse_motion(xrel, yrel, camera, delta, settings);
                     }
                 },
+                // TODO: Handle mouse button events
                 //Event::MouseButtonDown { mouse_btn, .. } => self.mouse_input.handle_button_down(mouse_btn),
                 //Event::MouseButtonUp { mouse_btn, .. } => self.mouse_input.handle_button_up(mouse_btn),
                 // Handle keyboard events
@@ -125,7 +84,6 @@ pub fn handle_input(
                                 PlayerState::Playing => atlas_player.state = PlayerState::Spectator,
                                 PlayerState::Spectator => atlas_player.state = PlayerState::Playing,
                             }
-                            game_state.paused = !game_state.paused;
                         },
                         Some(Scancode::W) => input_state.forward = false,
                         Some(Scancode::A) => input_state.right= false,
@@ -144,12 +102,13 @@ pub fn handle_input(
     sdl.mouse().set_relative_mouse_mode(!game_state.paused);
 }
 
+// TODO: Move to a separate module
 fn handle_mouse_motion (xrel: i32, yrel: i32, camera: &mut Camera, delta: f32, settings: &mut GameSettings) {
 
     let xoffset = xrel as f32 * delta * settings.mouse_sensitivity;
     let yoffset = yrel as f32 * delta * settings.mouse_sensitivity;
 
-    let xrot = na::UnitQuaternion::from_axis_angle(
+    let zrot = na::UnitQuaternion::from_axis_angle(
         &-na::Vector3::z_axis(), 
         xoffset,
     );
@@ -158,7 +117,18 @@ fn handle_mouse_motion (xrel: i32, yrel: i32, camera: &mut Camera, delta: f32, s
         yoffset,
     );
 
+    // Note: By changing the order of multiplications here, we can make the camera
+    // do all rotations around it's own relative axes (including the z axis),
+    // which would make it a full 3D-space camera. This actually isn't good 
+    // in FPS games, where the player never has to "roll (rotate around relative x)"
+    // the camera. To fix this, we rotate around the z axis last, so it's always
+    // the world's absolute z axis.
+    // To make a space-type camera, the z rotation should be performed first.
+    // Note 2: When multiplying transformations, the order is actually done backwards
+    // (yrot is the first rotation performed, because it's the last one in the multiplication)
+
     camera.position.rotation = 
-        camera.position.rotation
-        * yrot * xrot;
+        zrot
+        * camera.position.rotation
+        * yrot;
 }

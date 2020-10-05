@@ -42,12 +42,11 @@ pub fn player_movement(
         PlayerState::Spectator => {
             let speed = time.delta * game_settings.movement_speed;
             // Move only the camera
+
             // TODO: Refactor
             if input_state.forward {
                 // Move in the z direction (camera pointing forward; depth)
                 let vector = camera.position.rotation * na::Vector::x();
-                // Ignore the pitch (rotation along the x axis),
-                // then renormalize to discard the effect of ignoring the pitch
                 camera.position.translation.vector += vector * speed;
             }
             if input_state.right {

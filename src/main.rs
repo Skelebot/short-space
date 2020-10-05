@@ -135,7 +135,8 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
             na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 0.0),
         );
         world.push((model, pos));
-        // Create a box
+
+        // Create a box (mainly for debugging)
         let model = Model::new(
             &loader, 
             &gl, 
@@ -143,19 +144,23 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
             &shader, 
             settings.debug
         )?;
-
+        let vel = physics::Velocity::new(
+            na::Vector3::repeat(0.0), 
+            na::Vector3::repeat(0.0)
+        );
         let pos = na::Isometry3::<f32>::from_parts(
             na::Translation3::new(0.0, -2.0, 3.0),
             na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 20.0_f32.to_radians()),
         );
-        world.push((model, pos));
+        world.push((model, pos, vel));
     }
     
     // Create the player
-    let pos = na::Isometry3::<f32>::from_parts(
-        na::Translation3::new(0.0, 5.0, 2.0),
-        na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 0.0),
-    );
+    let pos = 
+    physics::Position::from(na::Isometry3::<f32>::from_parts(
+        na::Translation3::new(1.0, 5.0, 3.0),
+        na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), -90.0_f32.to_radians()),
+    ));
     use nc::shape::{ShapeHandle, Capsule};
     let collider = physics::Collider::from(
         ShapeHandle::new(Capsule::new(1.0, 1.0))
@@ -169,6 +174,8 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
         state: PlayerState::Spectator,
         movement_state: MovementState::Airborne,
     };
+    // Add the player to the world and keep it's Entity (an ID)
+    // so we can add it to a Resource to track the single main player
     let atlas = world.push((pos, collider, vel, player));
 
     let atlas = player::Atlas { entity: atlas };
