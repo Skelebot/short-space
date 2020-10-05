@@ -159,6 +159,7 @@ impl Model {
             self.shader_program.set_uniform_3f(&gl, loc, &camera_pos.coords);
         }
         let model_loc = self.shader_program.get_uniform_location(&gl, "Model").unwrap();
+        // Fix the coordinate system (have z as up instead of backwards)
         let real_transform =
             transformation.translation
             * transformation.rotation.to_rotation_matrix()

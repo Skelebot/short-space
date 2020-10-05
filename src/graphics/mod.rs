@@ -14,12 +14,17 @@ mod texture;
 pub use texture::Texture;
 mod viewport;
 pub use viewport::Viewport;
-//mod bitmap_font;
 mod camera;
 pub use camera::Camera;
 // TODO: What's wrong with it?
 //mod light;
 
+// Notes on the graphics engine
+// 1. OpenGL uses the right-hand coordinate space (x right, y up, -z forward),
+// But Blender and everything else uses Z as height, which makes much more sense.
+// By applying a few rotations on the Model matrixes before sending them to shaders
+// and a few tricks in the look-at view matrix generation we can use the OpenGL's
+// coordinate system with ours (x forward, y left, z up)
 
 /// Setup the window and the OpenGL context and add all the necessary resources to the ECS
 pub fn setup_window(_world: &mut World, resources: &mut Resources) -> Result<()> {
@@ -104,7 +109,7 @@ pub fn render(
     #[resource] camera: &Camera, 
     #[resource] gl: &gl::Gl
 ) {
-    model.render(gl, &camera.get_view_matrix(), &camera.get_projection_matrix(), &camera.get_position().translation.vector.into(), position)
+    model.render(gl, &camera.get_view_matrix(), &camera.get_projection_matrix(), &camera.position.translation.vector.into(), position)
 }
 
 #[system]
