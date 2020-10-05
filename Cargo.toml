@@ -28,13 +28,15 @@ tobj = "0.1.11"
 floating-duration = "0.1.2"
 thiserror = "1.0.20"
 
-sdl2 = "0.32.2"
 #flatbuffers = "0.6.0"
 
 [dependencies.legion]
 version = "0.3.1"
 features = ["extended-tuple-impls"]
-#features = ["bundled", "static-link"]
+
+[dependencies.sdl2]
+version = "0.34.3"
+features = ["bundled", "static-link"]
 
 [build-dependencies]
 # Used for copying the assets dir to the target dir for testing
