@@ -2,7 +2,7 @@
 //extern crate ncollide3d;
 
 //pub mod entity;
-pub mod atlas;
+//pub mod atlas;
 //mod scene;
 //pub mod atlas_pmove;
 

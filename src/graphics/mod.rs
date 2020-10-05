@@ -7,12 +7,16 @@ use crate::settings::GameSettings;
 mod buffer;
 mod color_buffer;
 mod data;
-pub mod model;
+mod model;
+pub use model::Model;
 pub mod shader;
-pub mod texture;
-pub mod viewport;
+mod texture;
+pub use texture::Texture;
+mod viewport;
+pub use viewport::Viewport;
 //mod bitmap_font;
-pub mod camera;
+mod camera;
+pub use camera::Camera;
 // TODO: What's wrong with it?
 //mod light;
 
@@ -32,7 +36,7 @@ pub fn setup_window(_world: &mut World, resources: &mut Resources) -> Result<()>
     gl_attr.set_context_version(4, 5);
 
     let window = video_subsystem
-        .window("Game", settings.window_width as u32, settings.window_height as u32)
+        .window("short-space", settings.window_width as u32, settings.window_height as u32)
         .opengl()
         .resizable()
         .build()?;
@@ -50,7 +54,7 @@ pub fn setup_window(_world: &mut World, resources: &mut Resources) -> Result<()>
 
     let viewport = viewport::Viewport::for_window(settings.window_width, settings.window_height);
     viewport.set_used(&gl);
-    let color_buffer = color_buffer::ColorBuffer::from_color(na::Vector3::new(0.0, 0.0, 0.0));
+    let color_buffer = color_buffer::ColorBuffer::from_color(na::Vector3::new(0.3, 0.3, 0.3));
     color_buffer.set_used(&gl);
     unsafe {
         gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
@@ -59,15 +63,17 @@ pub fn setup_window(_world: &mut World, resources: &mut Resources) -> Result<()>
         gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
     }
 
-    let camera = camera::FpsCamera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
-
     let event_pump = sdl.event_pump().map_err(|e| Error::msg(e))?;
+
+    // Set up the camera
+    let camera = Camera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
+    resources.insert(camera);
 
     resources.insert(gl);
     resources.insert(gl_context);
+    resources.insert(video_subsystem);
     resources.insert(window);
     resources.insert(viewport);
-    resources.insert(camera);
     resources.insert(color_buffer);
     resources.insert(sdl);
     resources.insert(event_pump);
@@ -75,16 +81,11 @@ pub fn setup_window(_world: &mut World, resources: &mut Resources) -> Result<()>
     Ok(())
 }
 
-use model::Model;
-use camera::FpsCamera;
-use camera::Camera;
-
 #[system]
 pub fn render_prepare(
     #[resource] gl: &gl::Gl,
     #[resource] color_buffer: &mut color_buffer::ColorBuffer,
 ) {
-    //println!("render_prep");
     unsafe {
         // Enable back-face culling
         gl.Enable(gl::CULL_FACE);
@@ -100,18 +101,17 @@ pub fn render_prepare(
 pub fn render(
     position: &na::Isometry3<f32>, 
     model: &Model, 
-    #[resource] camera: &FpsCamera, 
+    #[resource] camera: &Camera, 
     #[resource] gl: &gl::Gl
 ) {
-    //println!("render");
     model.render(gl, &camera.get_view_matrix(), &camera.get_projection_matrix(), &camera.get_position().translation.vector.into(), position)
 }
 
 #[system]
 pub fn render_finish(
     #[resource] window: &sdl2::video::Window,
+    #[resource] gl: &gl::Gl,
 ) {
-    //println!("render_finish");
     window.gl_swap_window();
-    //unsafe { gl.Finish(); }
+    unsafe { gl.Finish(); }
 }

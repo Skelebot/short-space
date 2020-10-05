@@ -1,96 +1,57 @@
-extern crate nalgebra as na;
-extern crate nphysics3d as np;
-extern crate ncollide3d as nc;
+mod velocity;
+pub use velocity::Velocity;
+use std::ops::{Deref, DerefMut};
 
-use self::np::world::{DefaultMechanicalWorld, DefaultGeometricalWorld};
-use self::np::object::{DefaultBodySet, DefaultColliderSet, DefaultBodyHandle, DefaultColliderHandle};
-use self::np::joint::DefaultJointConstraintSet;
-use self::np::force_generator::DefaultForceGeneratorSet;
-
-#[derive(Debug, Fail)]
-pub enum Error {
-    #[fail(display = "Invalid rigidbody handle: {:?}", rb_handle)]
-    InvalidRBHandle { rb_handle: DefaultBodyHandle },
-    #[fail(display = "Invalid collider handle: {:?}", cl_handle)]
-    InvalidCLHandle { cl_handle: DefaultColliderHandle },
+pub struct Collider {
+    inner: nc::shape::ShapeHandle<f32>
+}
+impl Deref for Collider {
+    type Target = dyn nc::shape::Shape<f32>;
+    fn deref(&self) -> &Self::Target {
+        self.inner.deref()
+    }
 }
 
-pub struct Physics {
-    pub mech_world: DefaultMechanicalWorld<f32>,
-    pub geom_world: DefaultGeometricalWorld<f32>,
-    pub bodies: DefaultBodySet<f32>,
-    pub colliders: DefaultColliderSet<f32>,
-    joint_constraints: DefaultJointConstraintSet<f32>,
-    force_generators: DefaultForceGeneratorSet<f32>,
+impl From<nc::shape::ShapeHandle<f32>> for Collider {
+    fn from(shape: nc::shape::ShapeHandle<f32>) -> Self {
+        Self { inner: shape }
+    }
 }
 
-impl Physics {
-    pub fn new(gravity: f32) -> Self {
-        Physics {
-            mech_world: DefaultMechanicalWorld::new(na::Vector3::new(0.0, gravity, 0.0)),
-            geom_world: DefaultGeometricalWorld::new(),
-            bodies: DefaultBodySet::new(),
-            colliders: DefaultColliderSet::new(),
-            joint_constraints: DefaultJointConstraintSet::new(),
-            force_generators: DefaultForceGeneratorSet::new(),
+/// A wrapper for nalgebra's Isometry to be used as a component for physical entities
+pub struct Position {
+    inner: na::Isometry3<f32>,
+}
+
+impl From<na::Isometry3<f32>> for Position {
+    fn from(iso: na::Isometry3<f32>) -> Self {
+        Self { inner: iso }
+    }
+}
+
+impl Deref for Position {
+    type Target = na::Isometry3<f32>;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for Position {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+pub struct PhysicsSettings {
+    pub gravity: na::Vector3<f32>,
+    pub air_friction: f32,
+}
+
+impl Default for PhysicsSettings {
+    fn default() -> Self {
+        PhysicsSettings {
+            gravity: na::Vector3::new(0.0, -0.01, 0.0),
+            air_friction: 0.01,
         }
-    }
-
-    pub fn add_rigid_body(&mut self, rigidbody: np::object::RigidBody<f32>) -> DefaultBodyHandle {
-        self.bodies.insert(rigidbody)
-    }
-
-    pub fn add_collider(&mut self, collider: np::object::Collider<f32, DefaultBodyHandle>) -> DefaultColliderHandle {
-        self.colliders.insert(collider)
-    }
-
-    #[allow(dead_code)]
-    pub fn get_body(&self, handle: DefaultBodyHandle) -> Result<&dyn np::object::Body<f32>, Error> {
-        match self.bodies.get(handle) {
-            Some(body) => Ok(body),
-            None => Err(Error::InvalidRBHandle { rb_handle: handle })
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn get_rigid_body(&self, handle: DefaultBodyHandle) -> Result<&np::object::RigidBody<f32>, Error> {
-        match self.bodies.rigid_body(handle) {
-            Some(rigid_body) => Ok(rigid_body),
-            None => Err(Error::InvalidRBHandle { rb_handle: handle })
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn get_rigid_body_mut(&mut self, handle: DefaultBodyHandle) -> Result<&mut np::object::RigidBody<f32>, Error> {
-        match self.bodies.rigid_body_mut(handle) {
-            Some(rigid_body) => Ok(rigid_body),
-            None => Err(Error::InvalidRBHandle { rb_handle: handle })
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn get_collider(&self, handle: DefaultColliderHandle) -> Result<&np::object::Collider<f32, DefaultBodyHandle>, Error> {
-        match self.colliders.get(handle) {
-            Some(collider) => Ok(collider),
-            None => Err(Error::InvalidCLHandle { cl_handle: handle })
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn get_collider_mut(&mut self, handle: DefaultColliderHandle) -> Result<&mut np::object::Collider<f32, DefaultBodyHandle>, Error> {
-        match self.colliders.get_mut(handle) {
-            Some(collider) => Ok(collider),
-            None => Err(Error::InvalidCLHandle { cl_handle: handle })
-        }
-    }
-
-    pub fn step(&mut self) {
-        self.mech_world.step(
-            &mut self.geom_world,
-            &mut self.bodies,
-            &mut self.colliders,
-            &mut self.joint_constraints,
-            &mut self.force_generators
-        );
     }
 }

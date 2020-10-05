@@ -170,7 +170,7 @@ impl Model {
                 std::ptr::null()
             );
         }
-        // ensure that if the model does not have a texture, it won't take the last texture bind
+        // ensure that if the model does not have a texture, it won't take the last texture bound
         if let Some(tex) = texture_bind {
             tex.unbind(&gl);
         }
