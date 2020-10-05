@@ -1,7 +1,5 @@
 # HoldIT Game Engine
 
-##WIP, MOST PROBABLY BROKEN
-
 _A HoldIT Game Engine_
 
 __Features:__
