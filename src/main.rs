@@ -166,13 +166,14 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
         ShapeHandle::new(Capsule::new(1.0, 1.0))
     );
     let vel = physics::Velocity::new(
-        na::Vector3::repeat(0.0), 
+        na::Vector3::repeat(0.0_f32), 
         na::Vector3::repeat(0.0)
     );
     use player::*;
     let player = Player {
         state: PlayerState::Spectator,
         movement_state: MovementState::Airborne,
+        flags: 0,
     };
     // Add the player to the world and keep it's Entity (an ID)
     // so we can add it to a Resource to track the single main player

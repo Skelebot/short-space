@@ -14,11 +14,13 @@ use sdl2::keyboard::Scancode;
 /// Tracks which keys are pressed
 #[derive(Default, Debug)]
 pub struct InputState {
-    pub forward: bool,
-    pub backward: bool,
-    pub right: bool,
-    pub left: bool,
-    pub jump: bool,
+    // TODO: Use a na::Vector3 (?)
+    // Movement on the z axis (ducked/jumping) -1.0 to 1.0
+    pub upmove: f32,
+    // Movement on the x axis (backward/forward) -1.0 to 1.0
+    pub fwdmove: f32,
+    // Movement on the y axis (left/right) -1.0 to 1.0
+    pub sidemove: f32,
 }
 
 #[system]
@@ -62,11 +64,6 @@ pub fn handle_input(
                 // Handle keyboard events
                 Event::KeyDown { scancode, .. } => {
                     match scancode {
-                        Some(Scancode::W) => input_state.forward = true,
-                        Some(Scancode::A) => input_state.right= true,
-                        Some(Scancode::D) => input_state.left = true,
-                        Some(Scancode::S) => input_state.backward = true,
-                        Some(Scancode::Space) => input_state.jump = true,
                         _ => (),
                     }
                 },
@@ -79,17 +76,12 @@ pub fn handle_input(
                         Some(Scancode::P) => {
                             let mut atlas_player = world.entry_mut(atlas.entity).unwrap();
                             let mut atlas_player = atlas_player.get_component_mut::<Player>().unwrap();
-                            // Toggle the main player's state between Spectator and Playing
+                            // Toggle the main player's to spectator and back to normal
                             match atlas_player.state {
-                                PlayerState::Playing => atlas_player.state = PlayerState::Spectator,
-                                PlayerState::Spectator => atlas_player.state = PlayerState::Playing,
+                                PlayerState::Spectator => atlas_player.state = PlayerState::Normal,
+                                _ => atlas_player.state = PlayerState::Spectator,
                             }
                         },
-                        Some(Scancode::W) => input_state.forward = false,
-                        Some(Scancode::A) => input_state.right= false,
-                        Some(Scancode::D) => input_state.left = false,
-                        Some(Scancode::S) => input_state.backward = false,
-                        Some(Scancode::Space) => input_state.jump = false,
                         _ => (),
                     }
                 }
@@ -97,6 +89,23 @@ pub fn handle_input(
             }
         }
     }
+
+    // TODO: Controller support
+    // Update keycodes
+    let kbd_state = event_pump.keyboard_state();
+    // Set upmove
+    input_state.upmove = 0.0;
+    if kbd_state.is_scancode_pressed(Scancode::Space) { input_state.upmove += 1.0 }
+    if kbd_state.is_scancode_pressed(Scancode::LCtrl) { input_state.upmove -= 1.0 }
+    // Set fwdmove
+    input_state.upmove = 0.0;
+    if kbd_state.is_scancode_pressed(Scancode::W) { input_state.fwdmove += 1.0 }
+    if kbd_state.is_scancode_pressed(Scancode::S) { input_state.fwdmove -= 1.0 }
+    // Set sidemove
+    input_state.upmove = 0.0;
+    if kbd_state.is_scancode_pressed(Scancode::D) { input_state.sidemove += 1.0 }
+    if kbd_state.is_scancode_pressed(Scancode::A) { input_state.sidemove -= 1.0 }
+
 
     // Release mouse cursor if the game is paused
     sdl.mouse().set_relative_mouse_mode(!game_state.paused);

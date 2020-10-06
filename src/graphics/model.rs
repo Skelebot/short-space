@@ -23,7 +23,7 @@ pub struct Model {
     program_projection_location: Option<i32>,
     camera_pos_location: Option<i32>,
     tex_face_location: Option<i32>,
-    _vbo: buffer::ArrayBuffer,
+    vbo: buffer::ArrayBuffer,
     _ebo: buffer::ElementArrayBuffer,
     index_count: i32,
     vao: buffer::VertexArray,
@@ -39,7 +39,7 @@ impl Model {
         debug: bool
     ) -> Result<Model> {
         let shader_program = shader_program.clone();
-        //set up shader program
+        // Set up the shader program
         let program_view_location = shader_program.get_uniform_location(&gl, "View");
         let program_projection_location = shader_program.get_uniform_location(&gl, "Projection");
         let camera_pos_location = shader_program.get_uniform_location(&gl, "CameraPos");
@@ -47,9 +47,10 @@ impl Model {
 
         let imported_models = res.load_obj(model_path, debug)?;
 
-        //take first material in obj
+        // Take the first material in obj
+        // TODO: Allow more thann one material per obj
         let material = imported_models.materials.into_iter().next();
-        let material_index = material.as_ref().map(|_| 0); //it is first or None
+        let material_index = material.as_ref().map(|_| 0); //it is 0 or None
 
         let texture = match material {
             Some(material) => if &material.diffuse_texture == "" {
@@ -116,7 +117,7 @@ impl Model {
             program_projection_location,
             camera_pos_location,
             tex_face_location,
-            _vbo: vbo,
+            vbo: vbo,
             _ebo: ebo,
             index_count: ebo_data.len() as i32,
             vao,
@@ -195,13 +196,12 @@ impl Model {
         nc::shape::TriMesh::new(points, indices, None)
     }
 
-    /// 
     pub unsafe fn destroy(&mut self, gl: &gl::Gl) {
         self.shader_program.destroy(&gl);
         if let Some(ref mut tex) = self.texture { tex.destroy(&gl) }
 
         self.vao.destroy(&gl);
-        self._vbo.destroy(&gl);
+        self.vbo.destroy(&gl);
     }
 }
 

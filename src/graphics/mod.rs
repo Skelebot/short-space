@@ -74,6 +74,14 @@ pub fn setup_window(_world: &mut World, resources: &mut Resources) -> Result<()>
     let camera = Camera::new(viewport.get_aspect(), 3.14/2.0, 0.01, 1000.0); 
     resources.insert(camera);
 
+    // OpenGL config
+    unsafe {
+        // Enable depth testing
+        gl.Enable(gl::DEPTH_TEST);
+        // Enable back-face culling
+        gl.Enable(gl::CULL_FACE);
+    }
+
     resources.insert(gl);
     resources.insert(gl_context);
     resources.insert(video_subsystem);
@@ -82,6 +90,7 @@ pub fn setup_window(_world: &mut World, resources: &mut Resources) -> Result<()>
     resources.insert(color_buffer);
     resources.insert(sdl);
     resources.insert(event_pump);
+
 
     Ok(())
 }
@@ -92,16 +101,14 @@ pub fn render_prepare(
     #[resource] color_buffer: &mut color_buffer::ColorBuffer,
 ) {
     unsafe {
-        // Enable back-face culling
-        gl.Enable(gl::CULL_FACE);
-        // Clear the depth and color buffers
-        gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-        // Enable depth testing
-        gl.Enable(gl::DEPTH_TEST);
+        // Clear the depth buffer
+        gl.Clear(gl::DEPTH_BUFFER_BIT);
+        // Clear the color buffer
         color_buffer.clear(&gl);
     }
 }
 
+/// Render every Model with a Position
 #[system(for_each)]
 pub fn render(
     position: &na::Isometry3<f32>, 
@@ -112,6 +119,7 @@ pub fn render(
     model.render(gl, &camera.get_view_matrix(), &camera.get_projection_matrix(), &camera.position.translation.vector.into(), position)
 }
 
+/// Swap in the backbuffer and wait for OpenGL to finish
 #[system]
 pub fn render_finish(
     #[resource] window: &sdl2::video::Window,

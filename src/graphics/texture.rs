@@ -22,7 +22,10 @@ impl Texture {
         unsafe {
             gl.GenTextures(1, &mut texture);
             gl.BindTexture(gl::TEXTURE_2D, texture);
-            //TODO: glTexParametri
+            // TODO: Mipmaps
+            // TODO: Make TexParameters configurable (builder model)
+            gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+            gl.TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
             gl.TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as i32, width, height, 0, gl::RGB, gl::UNSIGNED_BYTE,
                           data.as_ptr() as *const raw::c_void);
             gl.GenerateMipmap(gl::TEXTURE_2D);
