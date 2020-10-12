@@ -73,7 +73,7 @@ fn run() -> Result<(), anyhow::Error> {
     let mut schedule = Schedule::builder()
         .add_thread_local(time::update_time_system())
         .add_thread_local(input::handle_input_system())
-        .add_system(player::player_movement_system())
+        .add_thread_local(player::player_movement_system())
         .flush()
         .add_thread_local(graphics::render_prepare_system())
         .add_thread_local(graphics::render_system())
@@ -171,7 +171,7 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
     );
     use player::*;
     let player = Player {
-        state: PlayerState::Spectator,
+        state: PlayerState::Noclip,
         movement_state: MovementState::Airborne,
         flags: 0,
     };

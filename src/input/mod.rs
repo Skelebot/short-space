@@ -93,20 +93,20 @@ pub fn handle_input(
     // TODO: Controller support
     // Update keycodes
     let kbd_state = event_pump.keyboard_state();
+    // Set fwdmove
+    input_state.fwdmove = 0.0;
+    if kbd_state.is_scancode_pressed(Scancode::W) { input_state.fwdmove += 1.0 }
+    if kbd_state.is_scancode_pressed(Scancode::S) { input_state.fwdmove -= 1.0 }
+    // Set sidemove
+    input_state.sidemove = 0.0;
+    if kbd_state.is_scancode_pressed(Scancode::D) { input_state.sidemove += 1.0 }
+    if kbd_state.is_scancode_pressed(Scancode::A) { input_state.sidemove -= 1.0 }
     // Set upmove
     input_state.upmove = 0.0;
     if kbd_state.is_scancode_pressed(Scancode::Space) { input_state.upmove += 1.0 }
     if kbd_state.is_scancode_pressed(Scancode::LCtrl) { input_state.upmove -= 1.0 }
-    // Set fwdmove
-    input_state.upmove = 0.0;
-    if kbd_state.is_scancode_pressed(Scancode::W) { input_state.fwdmove += 1.0 }
-    if kbd_state.is_scancode_pressed(Scancode::S) { input_state.fwdmove -= 1.0 }
-    // Set sidemove
-    input_state.upmove = 0.0;
-    if kbd_state.is_scancode_pressed(Scancode::D) { input_state.sidemove += 1.0 }
-    if kbd_state.is_scancode_pressed(Scancode::A) { input_state.sidemove -= 1.0 }
 
-
+    println!("state: {:?}", input_state);
     // Release mouse cursor if the game is paused
     sdl.mouse().set_relative_mouse_mode(!game_state.paused);
 }

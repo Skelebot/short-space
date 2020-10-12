@@ -61,33 +61,49 @@ pub fn player_movement(
             // PM_FlyMove();
             //  PM_Friction();
             apply_friction(&player, velocity, time);
-            //  
+            //  PM_CmdScale();
+            //  wishvel
+            let forward = **position * na::Vector3::x();
+            let right = **position * na::Vector3::y();
+            let mut wishvel = na::Vector3::repeat(0.0);
+            let scale = 1.0;
+            wishvel.x = scale * forward.x * input_state.fwdmove + scale * right.x * input_state.sidemove;
+            wishvel.y = scale * forward.y * input_state.fwdmove + scale * right.y * input_state.sidemove;
+            wishvel.z = scale * forward.z * input_state.fwdmove + scale * right.z * input_state.sidemove;
+            wishvel.z += scale * input_state.upmove;
+            let wishdir = wishvel.clone();
+            let wishspeed = wishdir.norm();
+            //  PM_Accelerate();
+            // q2 style
+            let currentspeed = na::Vector3::dot(&velocity.linear, &wishdir);
+            let addspeed = wishspeed - currentspeed;
+            if addspeed > 0.0 {
+                let accelspeed = ACCELERATE * time.delta * wishspeed;
+                velocity.linear += wishdir * accelspeed;
+            }
+            position.translation.vector += velocity.linear;
+            camera.position = **position;
+            println!("pos: {:?}", **position);
+            // PM_StepSlideMove();
+
             // PM_DropTimers();
             // return;
-
-            // Move only the camera
-            //let speed = time.delta * game_settings.movement_speed;
-            //if input_state.forward {
-            //    // Move in the z direction (camera pointing forward; depth)
-            //    let vector = camera.position.rotation * na::Vector::x();
-            //    camera.position.translation.vector += vector * speed;
-            //}
-            //if input_state.right {
-            //    let vector = camera.position.rotation * na::Vector::y();
-            //    camera.position.translation.vector += vector * speed;
-            //}
-            //if input_state.left {
-            //    let vector = camera.position.rotation * -na::Vector::y();
-            //    camera.position.translation.vector += vector * speed;
-            //}
-            //if input_state.backward {
-            //    let vector = camera.position.rotation * -na::Vector::x();
-            //    camera.position.translation.vector += vector * speed;
-            //}
         },
         PlayerState::Noclip => {
             // PM_NoclipMove();
             // PM_DropTimers();
+            // Move only the camera
+            let speed = time.delta * game_settings.noclip_speed;
+            println!("upmove: {:?}", input_state.upmove);
+            let direction = 
+            camera.position
+            * na::Vector3::new(
+                input_state.fwdmove,
+                -input_state.sidemove,
+                input_state.upmove,
+            );
+            println!("dir: {:?}", direction);
+            camera.position.translation.vector += direction * speed;
         },
         // No movement at all
         PlayerState::Freeze => {},

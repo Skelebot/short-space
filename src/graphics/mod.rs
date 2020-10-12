@@ -38,7 +38,7 @@ pub fn setup_window(_world: &mut World, resources: &mut Resources) -> Result<()>
     
     let gl_attr = video_subsystem.gl_attr();
     gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-    gl_attr.set_context_version(4, 5);
+    gl_attr.set_context_version(3, 0);
 
     let window = video_subsystem
         .window("short-space", settings.window_width as u32, settings.window_height as u32)
