@@ -2,6 +2,7 @@ use nalgebra as na;
 
 use crate::graphics::{Viewport, Camera};
 use crate::player::{Player, Atlas, PlayerState};
+use crate::physics::Position;
 use crate::time::Time;
 use crate::game_state::GameState;
 use crate::settings::GameSettings;
@@ -25,6 +26,7 @@ pub struct InputState {
 
 #[system]
 #[write_component(Player)]
+#[write_component(Position)]
 pub fn handle_input(
     #[resource] event_pump: &mut sdl2::EventPump,
     #[resource] sdl: &mut sdl2::Sdl,
@@ -55,7 +57,9 @@ pub fn handle_input(
                 Event::MouseMotion { xrel, yrel, .. } => {
                     if !game_state.paused {
                         let delta = time.delta;
-                        handle_mouse_motion(xrel, yrel, camera, delta, settings);
+                        let mut entry = world.entry_mut(atlas.entity).unwrap();
+                        let position = entry.get_component_mut::<Position>().unwrap();
+                        handle_mouse_motion(xrel, yrel, position, delta, settings);
                     }
                 },
                 // TODO: Handle mouse button events
@@ -106,13 +110,12 @@ pub fn handle_input(
     if kbd_state.is_scancode_pressed(Scancode::Space) { input_state.upmove += 1.0 }
     if kbd_state.is_scancode_pressed(Scancode::LCtrl) { input_state.upmove -= 1.0 }
 
-    println!("state: {:?}", input_state);
     // Release mouse cursor if the game is paused
     sdl.mouse().set_relative_mouse_mode(!game_state.paused);
 }
 
 // TODO: Move to a separate module
-fn handle_mouse_motion (xrel: i32, yrel: i32, camera: &mut Camera, delta: f32, settings: &mut GameSettings) {
+fn handle_mouse_motion (xrel: i32, yrel: i32, position: &mut Position, delta: f32, settings: &mut GameSettings) {
 
     let xoffset = xrel as f32 * delta * settings.mouse_sensitivity;
     let yoffset = yrel as f32 * delta * settings.mouse_sensitivity;
@@ -136,8 +139,8 @@ fn handle_mouse_motion (xrel: i32, yrel: i32, camera: &mut Camera, delta: f32, s
     // Note 2: When multiplying transformations, the order is actually done backwards
     // (yrot is the first rotation performed, because it's the last one in the multiplication)
 
-    camera.position.rotation = 
+    position.rotation = 
         zrot
-        * camera.position.rotation
+        * position.rotation
         * yrot;
 }

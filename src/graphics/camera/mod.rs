@@ -5,8 +5,7 @@ use nalgebra as na;
 // TODO: Write tests
 
 pub struct Camera {
-    pub position: na::Isometry3<f32>,
-    projection: na::Perspective3<f32>,
+    pub position: na::Isometry3<f32>, projection: na::Perspective3<f32>,
 }
 impl Camera {
     pub fn new(

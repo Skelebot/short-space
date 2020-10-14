@@ -74,6 +74,7 @@ fn run() -> Result<(), anyhow::Error> {
         .add_thread_local(time::update_time_system())
         .add_thread_local(input::handle_input_system())
         .add_thread_local(player::player_movement_system())
+        .add_thread_local(test_system())
         .flush()
         .add_thread_local(graphics::render_prepare_system())
         .add_thread_local(graphics::render_system())
@@ -110,6 +111,7 @@ fn run() -> Result<(), anyhow::Error> {
 use graphics::{Model, shader};
 fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
 
+    let map;
     {
         let loader = resources.get::<AssetLoader>()
             .ok_or(Error::msg("AssetLoader not found"))?;
@@ -126,15 +128,19 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
         let model = Model::new(
             &loader, 
             &gl, 
-            "models/skatepark.obj", 
+            "models/warsztaty.obj", 
             &shader, 
             settings.debug
         )?;
-        let pos = na::Isometry3::<f32>::from_parts(
-            na::Translation3::new(0.0, 0.0, 0.0),
-            na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 0.0),
+        let pos = na::Isometry3::<f32>::identity();
+        let collider = physics::Collider::from(
+            nc::shape::ShapeHandle::new(
+                model.get_trimesh()
+                //nc::shape::Cuboid::new(na::Vector3::new(10.0, 10.0, 0.5))
+            )
         );
-        world.push((model, pos));
+        map = world.push((model, pos, collider));
+        world.entry(map).unwrap().add_component(map);
 
         // Create a box (mainly for debugging)
         let model = Model::new(
@@ -172,7 +178,7 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
     use player::*;
     let player = Player {
         state: PlayerState::Noclip,
-        movement_state: MovementState::Airborne,
+        ground_entity: Some(map),
         flags: 0,
     };
     // Add the player to the world and keep it's Entity (an ID)
@@ -183,4 +189,16 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
     resources.insert(atlas);
 
     Ok(())
+}
+
+use legion::{system, Entity, world::SubWorld, IntoQuery};
+#[system]
+#[read_component(Entity)]
+pub fn test(
+    world: &mut SubWorld
+) {
+    //let mut query = <&Entity>::query();
+    //for entity in query.iter(world) {
+    //    println!("entity: {:?}", entity);
+    //}
 }
