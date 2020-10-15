@@ -54,7 +54,7 @@ impl Scene {
             ));
         }
 
-        println!("Scene loaded.");
+        info!("Scene loaded.");
 
         Ok(Scene {
             atlas: atlas,

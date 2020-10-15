@@ -71,8 +71,8 @@ impl AssetLoader {
         }
     }
 
-    pub fn load_obj(&self, obj_file_name: &str, debug: bool) -> Result<ImportedModels, Error> {
-        obj::ModelsWithMaterials::load(&resource_name_to_path(&self.root_path, obj_file_name), debug)
+    pub fn load_obj(&self, obj_file_name: &str) -> Result<ImportedModels, Error> {
+        obj::ModelsWithMaterials::load(&resource_name_to_path(&self.root_path, obj_file_name))
             .map(|m| ImportedModels {
                 models: m.models,
                 materials: m.materials,

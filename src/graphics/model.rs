@@ -36,7 +36,6 @@ impl Model {
         gl: &gl::Gl,
         model_path: &str,
         shader_program: &shader::Program,
-        debug: bool
     ) -> Result<Model> {
         let shader_program = shader_program.clone();
         // Set up the shader program
@@ -45,7 +44,7 @@ impl Model {
         let camera_pos_location = shader_program.get_uniform_location(&gl, "CameraPos");
         let tex_face_location = shader_program.get_uniform_location(&gl, "TexFace");
 
-        let imported_models = res.load_obj(model_path, debug)?;
+        let imported_models = res.load_obj(model_path)?;
 
         // Take the first material in obj
         // TODO: Allow more thann one material per obj

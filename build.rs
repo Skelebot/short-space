@@ -9,7 +9,6 @@ use walkdir::WalkDir;
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    println!("Copied!");
 
     // locate executable path even if the project is in workspace
 

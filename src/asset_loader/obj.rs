@@ -21,27 +21,25 @@ pub struct ModelsWithMaterials {
 }
 
 impl ModelsWithMaterials {
-    pub fn load(path: &Path, debug: bool) -> Result<ModelsWithMaterials, Error> {
+    pub fn load(path: &Path) -> Result<ModelsWithMaterials, Error> {
         if !path.is_absolute() {
             return Err(Error::ObjPathMustBeAbsolute { path: path.into() });
         }
 
         let (models, materials) = tobj::load_obj(path)?;
-        if debug {
-            println!("models: {:?}", models.len());
-            for model in &models {
-                println!("name: {:?}", model.name);
-                println!("positions {:?}", model.mesh.positions);
-                println!("normals {:?}", model.mesh.normals);
-                println!("texcoords {:?}", model.mesh.texcoords);
-                println!("indices {:?}", model.mesh.indices);
-                println!("material_id {:?}", model.mesh.material_id);
-            }
+        debug!("models: {:?}", models.len());
+        for model in &models {
+            debug!("name: {:?}", model.name);
+            debug!("positions {:?}", model.mesh.positions);
+            debug!("normals {:?}", model.mesh.normals);
+            debug!("texcoords {:?}", model.mesh.texcoords);
+            debug!("indices {:?}", model.mesh.indices);
+            debug!("material_id {:?}", model.mesh.material_id);
+        }
 
-            println!("materials: {:?}", materials.len());
-            for obj in &materials {
-                println!("material: {:#?}", obj);
-            }
+        debug!("materials: {:?}", materials.len());
+        for obj in &materials {
+            debug!("material: {:#?}", obj);
         }
 
         Ok(ModelsWithMaterials { models, materials })

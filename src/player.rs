@@ -46,7 +46,7 @@ pub fn player_movement(
     world: &mut SubWorld,
 ) {
     if game_state.paused { return; }
-    println!("state: {:?}", player.state);
+    info!("state: {:?}", player.state);
     // Get the all components belonging to the player-controlled player (here called Atlas)
     // For now, we only care about the Atlas player
     if *entity != atlas.entity { return; }
@@ -88,7 +88,7 @@ pub fn player_movement(
                     // easier. Consider changing it to true
                     false
                 );
-                println!("hit: {}", intersection.is_some());
+                info!("hit: {}", intersection.is_some());
                 // Was on ground, but now suddenly i'm not
                 if let Some(hit) = intersection {
                     // If we hit a steep plane, we are not on ground
@@ -101,7 +101,7 @@ pub fn player_movement(
             }
         }
     } // Categorize position
-    println!("ground: {:?}", player.ground_entity);
+    info!("ground: {:?}", player.ground_entity);
 
     // TODO: Check for ducking
     // check_duck();
@@ -139,7 +139,7 @@ pub fn player_movement(
             }
             position.translation.vector += velocity.linear;
             camera.position = **position;
-            println!("pos: {:?}", **position);
+            info!("pos: {:?}", **position);
             // PM_StepSlideMove();
 
             // PM_DropTimers();
@@ -184,7 +184,7 @@ pub fn player_movement(
                 // Cap at addspeed
                 if accelspeed > addspeed { accelspeed = addspeed }
 
-                println!("wish * accel {:?}", wishdir * accelspeed);
+                info!("wish * accel {:?}", wishdir * accelspeed);
                 // Finally, adjust velocity
                 velocity.linear += wishdir * accelspeed;
 

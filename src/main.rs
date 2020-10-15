@@ -1,9 +1,15 @@
 #[macro_use]
 extern crate render_gl_derive;
+
 extern crate nalgebra as na;
 extern crate ncollide3d as nc;
 
+#[macro_use]
+extern crate log;
+
 mod graphics;
+mod wgpu_graphics;
+
 mod asset_loader;
 mod input;
 mod settings;
@@ -24,7 +30,11 @@ use crate::asset_loader::AssetLoader;
 use std::path::Path;
 
 fn main() -> Result<(), anyhow::Error> {
-    run()
+    env_logger::init();
+    info!("Starting up");
+    wgpu_graphics::start()?;
+    //run()
+    Ok(())
 }
 
 fn run() -> Result<(), anyhow::Error> {
@@ -59,15 +69,11 @@ fn run() -> Result<(), anyhow::Error> {
     resources.insert(asset_loader);
     resources.insert(game_state);
     resources.insert(time);
+
+    wgpu_graphics::setup(&mut world, &mut resources);
     
     graphics::setup_window(&mut world, &mut resources)?;
     setup_scene(&mut world, &mut resources)?;
-
-    use legion::system;
-    #[system]
-    fn aa(#[resource] world: &mut World) {
-        println!("{:?}", world.is_empty());
-    }
 
     // Create the schedule that will be executed every frame
     let mut schedule = Schedule::builder()
@@ -96,8 +102,6 @@ fn run() -> Result<(), anyhow::Error> {
         .ok_or(Error::msg("Gl not found"))?;
 
     // Destroy all things that need to be destroyed
-    use legion::IntoQuery;
-
     let mut query = legion::Write::<graphics::Model>::query();
 
     for model in query.iter_mut(&mut world) {
@@ -130,7 +134,6 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
             &gl, 
             "models/warsztaty.obj", 
             &shader, 
-            settings.debug
         )?;
         let pos = na::Isometry3::<f32>::identity();
         let collider = physics::Collider::from(
@@ -148,7 +151,6 @@ fn setup_scene(world: &mut World, resources: &mut Resources) -> Result<()> {
             &gl, 
             "models/xyz_cube.obj", 
             &shader, 
-            settings.debug
         )?;
         let vel = physics::Velocity::new(
             na::Vector3::repeat(0.0), 
