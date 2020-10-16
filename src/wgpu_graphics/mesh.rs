@@ -1,4 +1,3 @@
-#[macro_use]
 use bytemuck::{Pod, Zeroable};
 
 use wgpu::util::DeviceExt;
@@ -91,8 +90,6 @@ impl Model {
                 }
             ]
         });
-
-        let mut cube_pos = na::Isometry3::<f32>::identity();
 
         Model {
             world: na::Matrix4::identity(),

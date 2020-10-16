@@ -9,7 +9,7 @@ use legion::{system, World, Resources};
 mod mesh;
 
 pub fn start() -> Result<()> {
-    futures::executor::block_on(setup());
+    futures::executor::block_on(setup())?;
     Ok(())
 }
 
@@ -62,7 +62,7 @@ pub async fn setup() -> Result<()> {
     let vs_module = device.create_shader_module(wgpu::include_spirv!("shader.vert.spv"));
     let fs_module = device.create_shader_module(wgpu::include_spirv!("shader.frag.spv"));
 
-    let mut swap_chain_desc = wgpu::SwapChainDescriptor {
+    let swap_chain_desc = wgpu::SwapChainDescriptor {
         usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
         format: swapchain_format,
         width: size.width,
@@ -71,9 +71,7 @@ pub async fn setup() -> Result<()> {
         present_mode: wgpu::PresentMode::Mailbox,
     };
 
-    let mut swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
-
-    let vertex_size = std::mem::size_of::<mesh::Vertex>();
+    let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
 
     let mesh_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: None,
@@ -239,7 +237,7 @@ pub async fn setup() -> Result<()> {
 
     let _ = (&instance, &adapter, &vs_module, &fs_module, &pipeline_layout);
 
-    run(device, swap_chain, swap_chain_desc, surface, event_loop, window, mesh_pass, swapchain_format, queue, camera).await;
+    run(device, swap_chain, swap_chain_desc, surface, event_loop, window, mesh_pass, queue, camera).await;
     Ok(())
 }
 
@@ -251,15 +249,12 @@ async fn run(
     event_loop: EventLoop<()>,
     window: Window,
     mesh_pass: mesh::MeshPass,
-    swapchain_format: wgpu::TextureFormat,
     queue: wgpu::Queue,
     mut camera: crate::graphics::Camera,
 ) {
     debug!("Creating cube data");
     let cube_model = mesh::Model::from_data(mesh::create_cube(), &mut device, &mesh_pass);
     let plane_model = mesh::Model::from_data(mesh::create_plane(10), &mut device, &mesh_pass);
-
-    let model_uniform_size = std::mem::size_of::<mesh::ModelUniforms>() as wgpu::BufferAddress;
 
     debug!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
