@@ -47,16 +47,18 @@ impl Camera {
 
         // The target can be an arbitrary point in the direction the camera is pointing
         // x axis = front
-        let target: na::Point3<f32> = 
-            self.position.translation
-            * self.position.rotation
-            * na::Point3::new(1.0, 0.0, 0.0);
+        //let target: na::Point3<f32> = 
+        //    self.position.translation
+        //    * self.position.rotation
+        //    * na::Point3::new(1.0, 0.0, 0.0);
+        let target = self.position * na::Point3::new(0.0, 1.0, 0.0);
 
         // z axis - up
-        let up: na::Vector3<f32> = 
-            self.position.translation
-            * self.position.rotation
-            * na::Vector3::new(0.0, 0.0, 1.0);
+        //let up: na::Vector3<f32> = 
+        //    self.position.translation
+        //    * self.position.rotation
+        //    * na::Vector3::new(0.0, 0.0, 1.0);
+        let up = self.position * na::Vector3::z();
 
         na::Matrix::look_at_rh(&position, &target, &up)
     }

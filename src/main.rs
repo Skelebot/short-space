@@ -70,7 +70,7 @@ fn run() -> Result<(), anyhow::Error> {
     resources.insert(game_state);
     resources.insert(time);
 
-    wgpu_graphics::setup(&mut world, &mut resources);
+    //wgpu_graphics::setup();
     
     graphics::setup_window(&mut world, &mut resources)?;
     setup_scene(&mut world, &mut resources)?;

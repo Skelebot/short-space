@@ -1,10 +1,26 @@
 #version 450
 
-out gl_PerVertex {
-    vec4 gl_Position;
+layout (location = 0) in vec3 Position;
+layout (location = 1) in vec3 Normal;
+
+layout (set = 0, binding = 0) uniform Globals {
+    mat4 u_ViewProj;
+    vec3 u_CamPos;
+};
+layout (set = 0, binding = 0) uniform Mesh {
+    mat4 u_Model;
 };
 
+layout (location = 0) out vec3 frag_pos;
+layout (location = 1) out vec3 frag_norm;
+layout (location = 3) out vec3 cam_pos;
+
+
 void main() {
-    vec2 position = vec2(gl_VertexIndex, (gl_VertexIndex & 1) * 2) - 1;
-    gl_Position = vec4(position, 0.0, 1.0);
+    gl_Position = u_ViewProj * u_Model * vec4(Position, 1.0);
+
+    //protect aganist non-uniform scaling
+    frag_norm= mat3(transpose(inverse(u_Model))) * Normal;
+    cam_pos = u_CamPos;
+    frag_pos = Position;
 }
