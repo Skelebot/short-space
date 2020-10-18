@@ -1,12 +1,7 @@
-# HoldIT Game Engine
+# Endless Josh
 
 _A HoldIT Game Engine_
 
-__Features:__
-
- * Loading .obj models w/ materials
- * Loading RGB and RGBa textures
- * Real time rendering of multiple objects
- * Rendering using a perspective first-person camera
+[![Build Status](https://travis-ci.com/Skelebot/short-space.svg?token=jVjt5dHumaDUboMqZmdt&branch=wgpu)](https://travis-ci.com/Skelebot/short-space)
 
 ![Engine Screenshot](/assets/readme-assets/dice.png?raw=true "Screenshot")
