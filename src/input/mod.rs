@@ -1,21 +1,21 @@
 use nalgebra as na;
 
-use crate::graphics::{Viewport, Camera};
+use crate::graphics::Camera;
 use crate::player::{Player, Atlas, PlayerState};
 use crate::physics::Position;
 use crate::time::Time;
 use crate::game_state::GameState;
 use crate::settings::GameSettings;
 
-use legion::{system, world::SubWorld, world::EntityStore};
-use sdl2::event::Event;
-use sdl2::keyboard::Scancode;
+use legion::{system, World, Resources, EntityStore};
 
 // TODO: Key bindings (remove hardcoded Scancodes)
 /// Tracks which keys are pressed
 #[derive(Default, Debug)]
 pub struct InputState {
-    // TODO: Use a na::Vector3 (?)
+    // TODO: Use a na::Vector2::<f64>
+    last_cursor_pos: (f64, f64),
+    // TODO: Use a na::Vector3::<f32>
     // Movement on the z axis (ducked/jumping) -1.0 to 1.0
     pub upmove: f32,
     // Movement on the x axis (backward/forward) -1.0 to 1.0
@@ -24,6 +24,31 @@ pub struct InputState {
     pub sidemove: f32,
 }
 
+pub fn handle_keyboard_input(input: winit::event::KeyboardInput, world: &mut World, resources: &mut Resources) {
+
+}
+
+pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, world: &mut World, resources: &mut Resources) {
+    let time = resources.get::<Time>().unwrap();
+    let game_state = resources.get::<GameState>().unwrap();
+    //let atlas = resources.get::<Atlas>().unwrap();
+    let settings = resources.get::<GameSettings>().unwrap();
+    if !game_state.paused {
+        let delta = time.delta;
+        let mut entry = resources.get_mut::<Camera>().unwrap();
+        //let position = entry.get_component_mut::<Position>().unwrap();
+        let mut input_state = resources.get_mut::<InputState>().unwrap();
+        handle_mouse_motion(
+            input_state.last_cursor_pos.0 - input.x,
+            input_state.last_cursor_pos.1 - input.y,
+            &mut entry.position,
+            delta,
+            &settings
+        );
+        input_state.last_cursor_pos = (input.x, input.y);
+    }
+}
+/*
 #[system]
 #[write_component(Player)]
 #[write_component(Position)]
@@ -55,12 +80,6 @@ pub fn handle_input(
             e => match e {
                 // Handle mouse motion (relative)
                 Event::MouseMotion { xrel, yrel, .. } => {
-                    if !game_state.paused {
-                        let delta = time.delta;
-                        let mut entry = world.entry_mut(atlas.entity).unwrap();
-                        let position = entry.get_component_mut::<Position>().unwrap();
-                        handle_mouse_motion(xrel, yrel, position, delta, settings);
-                    }
                 },
                 // TODO: Handle mouse button events
                 //Event::MouseButtonDown { mouse_btn, .. } => self.mouse_input.handle_button_down(mouse_btn),
@@ -93,7 +112,6 @@ pub fn handle_input(
             }
         }
     }
-
     // TODO: Controller support
     // Update keycodes
     let kbd_state = event_pump.keyboard_state();
@@ -113,12 +131,15 @@ pub fn handle_input(
     // Release mouse cursor if the game is paused
     sdl.mouse().set_relative_mouse_mode(!game_state.paused);
 }
+*/
 
 // TODO: Move to a separate module
-fn handle_mouse_motion (xrel: i32, yrel: i32, position: &mut Position, delta: f32, settings: &mut GameSettings) {
+fn handle_mouse_motion (xrel: f64, yrel: f64, position: &mut na::Isometry3<f32>, delta: f32, settings: &GameSettings) {
 
     let xoffset = xrel as f32 * delta * settings.mouse_sensitivity;
     let yoffset = yrel as f32 * delta * settings.mouse_sensitivity;
+
+    debug!("offset: {:?}", (xoffset, yoffset));
 
     let zrot = na::UnitQuaternion::from_axis_angle(
         &-na::Vector3::z_axis(), 

@@ -1,3 +1,7 @@
+mod camera;
+pub use camera::Camera;
+
+/*
 use nalgebra as na;
 use anyhow::{Result, Error};
 use legion::{World, Resources, system};
@@ -14,8 +18,6 @@ mod texture;
 pub use texture::Texture;
 mod viewport;
 pub use viewport::Viewport;
-mod camera;
-pub use camera::Camera;
 // TODO: What's wrong with it?
 //mod light;
 
@@ -128,3 +130,4 @@ pub fn render_finish(
     window.gl_swap_window();
     unsafe { gl.Finish(); }
 }
+*/
