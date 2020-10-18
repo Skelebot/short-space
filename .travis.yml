@@ -1,32 +1,28 @@
 language: rust
+
 rust:
 - stable
+
 cache: cargo
+
 os:
 - linux
 - windows
+
 git:
   depth: 3
-addons:
-  apt:
-    packages:
-    - libcurl4-openssl-dev
-    - libelf-dev
-    - libdw-dev
-    - cmake
-    - gcc
-    - binutils-dev
-    - libiberty-dev
+
 before_deploy:
   - mkdir done
-  - cp assets done/
-  - cp target/release/game* done/
+  - cp -rf assets done/
+  - cp -f target/release/game* done/
+
 deploy:
   provider: releases
-  api_key:
+  token:
     secure: MCGnJH2r+jicrEdaSbZcnNugXj/p4oryrdJxZ6xVyvS8aEf5/sUDl24X6EFmdpgrs7pfJSYWr4wPfR0rbdtqAIazkZ2DTyIXQoFd6XIEbTti3nLrYNdW0DuKASa6yX+HVuxWcXjq41iiQjrQBhygAGLcYGzQlB9e1oZyIXziXqWXmwQMj5r24h3xwWMszpTN94/ZZCU4wL8v/+PiNteIDaJl/Ov//6ghDn0IKg4zSjpUl3HiSz9jzi8BwxqSGuCk+WXF4isjLAZyF8WcE2oRegFooYgz7Utft5HsEXade9h7StWh10V2SyRpAveVsk566ULAALnHqFCVgprU6QTPuq7GO/gtcQEaeuxdt+gJtebrcuhpfAH3Esf1IAzLg15VWF7BbWGziTruvvUNzgYjQtQ1sh6onWqJRIhzi6ioIS7nBr26mQHR4udzWfWMqOuVv6Zfvf1M+m6sJyX15JfWgbvt4QoIjBpbaaPAxA1eD2t9XvBMzMvWL75fdqJl4dnXyaJ2/moO4LFG3ZVrM0BHd/ikIJ0PPa0IQWErODx6X42po8IZZ0EHaPqQL6/KCzBW/o3d5ABo7MBU1REaXuARMSt1sm9P9hiMfrzmSi4mKND22jWXkWuEO7pAVYNz/PX3OKmcHJRv/jQ0mRHZn/vJBNy6j+iCLD5kdp1Mrr4B1NI=
   file: ./done
-  skip_cleanup: true
+  cleanup: false
   on:
     repo: Skelebot/short-space
     tags: true
