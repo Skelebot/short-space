@@ -25,4 +25,4 @@ addons:
       - libiberty-dev
 
 after_success:
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; ./.travis/codecov.sh; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ./.travis/codecov.sh; fi
