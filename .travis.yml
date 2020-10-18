@@ -13,10 +13,7 @@ git:
   depth: 3
 
 before_deploy:
-  - ls -la
-  - ls -la ./target/
-  - ls -la ./target/debug
-  - ls -la ./target/release
+  - cargo build --release
   - mkdir done
   - cp -rf assets done/
   - cp -f target/release/game* done/
