@@ -13,6 +13,10 @@ git:
   depth: 3
 
 before_deploy:
+  - ls -la
+  - ls -la ./target/
+  - ls -la ./target/debug
+  - ls -la ./target/release
   - mkdir done
   - cp -rf assets done/
   - cp -f target/release/game* done/
@@ -25,4 +29,4 @@ deploy:
   skip_cleanup: true
   on:
     repo: Skelebot/short-space
-    tags: true
+      #tags: true
