@@ -60,7 +60,7 @@ impl Camera {
         //    self.position.translation
         //    * self.position.rotation
         //    * na::Point3::new(1.0, 0.0, 0.0);
-        let target = self.position * na::Point3::new(0.0, 1.0, 0.0);
+        let target = self.position * na::Point3::new(1.0, 0.0, 0.0);
 
         // z axis - up
         //let up: na::Vector3<f32> = 

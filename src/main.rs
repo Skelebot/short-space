@@ -21,6 +21,9 @@ mod world;
 mod time;
 mod player;
 
+#[cfg(test)]
+mod tests;
+
 use settings::GameSettings;
 use anyhow::{Result, Error};
 use legion::{World, Resources, Schedule};
