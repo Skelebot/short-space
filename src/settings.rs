@@ -25,8 +25,8 @@ pub struct GameSettings {
 impl Default for GameSettings {
     fn default() -> Self {
         GameSettings {
-            noclip_speed: 10.0,
-            mouse_sensitivity: 0.1,
+            noclip_speed: 30.0,
+            mouse_sensitivity: 0.5,
             vsync: true,
             window_width: 800,
             window_height: 600,

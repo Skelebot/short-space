@@ -18,6 +18,23 @@ impl From<nc::shape::ShapeHandle<f32>> for Collider {
     }
 }
 
+pub struct Scale {
+    inner: na::Vector3<f32>
+}
+
+impl From<na::Vector3<f32>> for Scale {
+    fn from(vec: na::Vector3<f32>) -> Self {
+        Self { inner: vec }
+    }
+}
+
+impl Deref for Scale {
+    type Target = na::Vector3<f32>;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 /// A wrapper for nalgebra's Isometry to be used as a component for physical entities
 pub struct Position {
     inner: na::Isometry3<f32>,

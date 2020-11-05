@@ -28,14 +28,17 @@ ncollide3d = "0.22.0"
 image = "0.19.0"
 
 # OBJ model loading
-tobj = "0.1.11"
+#tobj = "0.1.11"
 floating-duration = "0.1.2"
-thiserror = "1.0.20"
+#thiserror = "1.0.20"
 
 # Other
 env_logger = "0.7.1"
 log = "*"
+
+# Data loading
 bytemuck = { version = "1.4.1", features = ["derive"] }
+wavefront_obj = "8.0.0"
 
 #flatbuffers = "0.6.0"
 

@@ -47,7 +47,10 @@ pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(
             compatible_surface: Some(&surface),
         })
         .await
-        .unwrap();
+        .ok_or(
+            anyhow::format_err!(
+                "Couldn't find a compatible graphics adapter for backend: {:?}\nIf you want to force a different backend, set the WGPU_BACKEND environmental variable.\nKeep in mind that OpenGL is not currently supported.",
+            backend))?;
 
     // Optional trace file
     let trace_dir = std::env::var("WGPU_TRACE");
@@ -63,7 +66,7 @@ pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(
             trace_dir.ok().as_ref().map(std::path::Path::new),
         )
         .await
-        .unwrap();
+        .map_err(|err| anyhow::anyhow!(err).context(anyhow::Error::msg("Failed to create the graphics device")))?;
 
     let swap_chain_desc = wgpu::SwapChainDescriptor {
         usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,

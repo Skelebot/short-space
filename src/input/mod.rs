@@ -9,6 +9,9 @@ use crate::settings::GameSettings;
 
 use legion::{system, World, Resources, EntityStore};
 
+use winit::event::VirtualKeyCode;
+use winit::event::ElementState;
+
 // TODO: Key bindings (remove hardcoded Scancodes)
 /// Tracks which keys are pressed
 #[derive(Default, Debug)]
@@ -24,28 +27,82 @@ pub struct InputState {
     pub sidemove: f32,
 }
 
-pub fn handle_keyboard_input(input: winit::event::KeyboardInput, world: &mut World, resources: &mut Resources) {
+pub fn handle_keyboard_input(input: winit::event::KeyboardInput, _world: &mut World, resources: &mut Resources) {
+    if let Some(vkeycode) = input.virtual_keycode {
 
+        let mut input_state = resources.get_mut::<InputState>().unwrap();
+
+        match (vkeycode, input.state) {
+            (VirtualKeyCode::Escape, ElementState::Pressed) => {
+                let mut game_state = resources.get_mut::<GameState>().unwrap();
+                game_state.paused = !game_state.paused;
+            },
+            _ => (),
+        }
+        
+        match vkeycode {
+            // TODO: Action bindings instead of hardcoded keys
+            // TODO: Cleanup
+            VirtualKeyCode::W => match input.state {
+                    ElementState::Pressed => input_state.fwdmove += 1.0,
+                    ElementState::Released => input_state.fwdmove -= 1.0,
+            },
+            VirtualKeyCode::S => match input.state {
+                ElementState::Pressed => input_state.fwdmove -= 1.0,
+                ElementState::Released => input_state.fwdmove += 1.0,
+            },
+            VirtualKeyCode::D => match input.state {
+                    ElementState::Pressed => input_state.sidemove += 1.0,
+                    ElementState::Released => input_state.sidemove -= 1.0,
+            },
+            VirtualKeyCode::A => match input.state {
+                ElementState::Pressed => input_state.sidemove -= 1.0,
+                ElementState::Released => input_state.sidemove += 1.0,
+            },
+            VirtualKeyCode::Space => match input.state {
+                    ElementState::Pressed => input_state.upmove += 1.0,
+                    ElementState::Released => input_state.upmove -= 1.0,
+            },
+            VirtualKeyCode::LControl => match input.state {
+                ElementState::Pressed => input_state.upmove -= 1.0,
+                ElementState::Released => input_state.upmove += 1.0,
+            },
+            _ => (),
+        }
+        input_state.fwdmove = input_state.fwdmove.min(1.0);
+        input_state.fwdmove = input_state.fwdmove.max(-1.0);
+        input_state.sidemove = input_state.sidemove.min(1.0);
+        input_state.sidemove = input_state.sidemove.max(-1.0);
+        input_state.upmove = input_state.upmove.min(1.0);
+        input_state.upmove = input_state.upmove.max(-1.0);
+    }
 }
 
-pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, world: &mut World, resources: &mut Resources) {
+pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, window: &winit::window::Window, world: &mut World, resources: &mut Resources) {
     let time = resources.get::<Time>().unwrap();
     let game_state = resources.get::<GameState>().unwrap();
     //let atlas = resources.get::<Atlas>().unwrap();
     let settings = resources.get::<GameSettings>().unwrap();
     if !game_state.paused {
         let delta = time.delta;
-        let mut entry = resources.get_mut::<Camera>().unwrap();
+        let mut camera = resources.get_mut::<Camera>().unwrap();
         //let position = entry.get_component_mut::<Position>().unwrap();
         let mut input_state = resources.get_mut::<InputState>().unwrap();
         handle_mouse_motion(
             input_state.last_cursor_pos.0 - input.x,
             input_state.last_cursor_pos.1 - input.y,
-            &mut entry.position,
+            &mut camera.position,
             delta,
             &settings
         );
-        input_state.last_cursor_pos = (input.x, input.y);
+        let size = window.inner_size();
+        let middle = 
+        winit::dpi::PhysicalPosition {
+            x: size.width / 2,
+            y: size.height / 2,
+        };
+        window.set_cursor_position(middle).unwrap();
+        input_state.last_cursor_pos = (middle.x.into(), middle.y.into());
     }
 }
 /*
@@ -139,14 +196,12 @@ fn handle_mouse_motion (xrel: f64, yrel: f64, position: &mut na::Isometry3<f32>,
     let xoffset = xrel as f32 * delta * settings.mouse_sensitivity;
     let yoffset = yrel as f32 * delta * settings.mouse_sensitivity;
 
-    debug!("offset: {:?}", (xoffset, yoffset));
-
     let zrot = na::UnitQuaternion::from_axis_angle(
-        &-na::Vector3::z_axis(), 
+        &na::Vector3::z_axis(), 
         xoffset,
     );
-    let yrot = na::UnitQuaternion::from_axis_angle(
-        &na::Vector3::y_axis(), 
+    let xrot = na::UnitQuaternion::from_axis_angle(
+        &na::Vector3::x_axis(), 
         yoffset,
     );
 
@@ -158,10 +213,10 @@ fn handle_mouse_motion (xrel: f64, yrel: f64, position: &mut na::Isometry3<f32>,
     // the world's absolute z axis.
     // To make a space-type camera, the z rotation should be performed first.
     // Note 2: When multiplying transformations, the order is actually done backwards
-    // (yrot is the first rotation performed, because it's the last one in the multiplication)
+    // (xrot is the first rotation performed, because it's the last one in the multiplication)
 
     position.rotation = 
         zrot
         * position.rotation
-        * yrot;
+        * xrot
 }

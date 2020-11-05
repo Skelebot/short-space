@@ -11,7 +11,7 @@ extern crate log;
 pub mod wgpu_graphics;
 pub use wgpu_graphics as graphics;
 
-//mod asset_loader;
+mod asset_loader;
 mod input;
 mod settings;
 mod game_state;
@@ -30,8 +30,6 @@ use legion::{World, Resources, Schedule};
 use wgpu_graphics::Pass;
 
 use game_state::GameState;
-
-use std::path::Path;
 
 use winit::{
     event::{Event, WindowEvent},
@@ -59,12 +57,15 @@ fn main() -> Result<(), anyhow::Error> {
         event_loop,
     ) = block_on(wgpu_graphics::setup(&mut world, &mut resources))?;
 
-    setup_resources(&mut world, &mut resources, &window);
+    setup_resources(&mut world, &mut resources, &window)?;
 
-    let mut mesh_pass = wgpu_graphics::mesh::MeshPass::new(&mut device, &window, &sc_desc, &mut world, &mut resources)?;
+    let mesh_pass = wgpu_graphics::mesh::MeshPass::new(&mut device, &window, &sc_desc, &mut world, &mut resources)?;
     resources.insert(mesh_pass);
 
-    setup_scene(&mut world, &mut resources, &mut device)?;
+    // Create a (temporary) CommandEncoder for loading data to GPU
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    setup_scene(&mut world, &mut resources, &mut device, &mut encoder)?;
+    queue.submit(Some(encoder.finish()));
 
     block_on(
         run(
@@ -84,7 +85,7 @@ fn main() -> Result<(), anyhow::Error> {
 }
 
 async fn run(
-    mut device: wgpu::Device,
+    device: wgpu::Device,
     mut swap_chain: wgpu::SwapChain,
     mut sc_desc: wgpu::SwapChainDescriptor,
     surface: wgpu::Surface,
@@ -98,15 +99,16 @@ async fn run(
     // Create the schedule that will be executed every frame
     let mut schedule = Schedule::builder()
         .add_thread_local(time::update_time_system())
+        .add_thread_local(player::player_movement_system())
         .build();
         //.add_thread_local(input::handle_input_system())
-        //.add_thread_local(player::player_movement_system())
         //.add_thread_local(test_system())
         //.flush()
         //.add_thread_local(graphics::render_prepare_system())
         //.add_thread_local(graphics::render_system())
         //.add_thread_local(graphics::render_finish_system())
         //.build();
+
 
     debug!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
@@ -117,12 +119,15 @@ async fn run(
         // and their drop() functions get called.
 
         *control_flow = ControlFlow::Poll;
-        if resources.get::<GameState>()
-            .ok_or(Error::msg("GameState not found"))
-            .unwrap()
-            .should_exit
-        {
+        if resources.get::<GameState>().unwrap().should_exit {
             *control_flow = ControlFlow::Exit;
+        }
+        if !resources.get::<GameState>().unwrap().paused {
+            window.set_cursor_grab(true).unwrap();
+            window.set_cursor_visible(false);
+        } else {
+            window.set_cursor_grab(false).unwrap();
+            window.set_cursor_visible(true);
         }
         match event {
             Event::WindowEvent {
@@ -149,7 +154,7 @@ async fn run(
             },
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::KeyboardInput { input, .. } => input::handle_keyboard_input(input, &mut world, &mut resources),
-                WindowEvent::CursorMoved { position, .. } => input::handle_cursor_moved(position, &mut world, &mut resources),
+                WindowEvent::CursorMoved { position, .. } => input::handle_cursor_moved(position, &window, &mut world, &mut resources),
                 _ => {},
             },
             // Emmited when all of the event loop's input events have been processed and redraw processing is about to begin.
@@ -158,7 +163,8 @@ async fn run(
             Event::MainEventsCleared => {
                 // Execute the schedule
                 schedule.execute(&mut world, &mut resources);
-                window.request_redraw();
+
+                //window.request_redraw();
 
                 // Render
                 let mut frame = swap_chain
@@ -184,18 +190,14 @@ async fn run(
     });
 }
 
-fn setup_resources(world: &mut World, resources: &mut Resources, window: &winit::window::Window) -> Result<()> {
+fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit::window::Window) -> Result<()> {
     // Set up the camera
     let size = window.inner_size();
     let aspect = size.width as f32 / size.height as f32;
-    //let mut camera = crate::graphics::Camera::new(aspect, 3.14/2.0, 0.01, 1000.0); 
-    let mut camera = crate::graphics::Camera::new(aspect, 45.0, 0.1, 20.0); 
-    //camera.position.translation.vector.x += 3.0;
-    camera.position.translation.vector.y += -5.0;
-    camera.position.translation.vector.z += 6.0;
+    let mut camera = crate::graphics::Camera::new(aspect, 45_f32.to_radians(), 0.001, 1000.0); 
     camera.position.rotation = na::UnitQuaternion::from_axis_angle(
         &na::Vector::x_axis(), 
-        -60.0f32.to_radians()
+        0.0f32.to_radians()
     );
     resources.insert(camera);
 
@@ -217,85 +219,104 @@ fn setup_resources(world: &mut World, resources: &mut Resources, window: &winit:
     // Create the frame-delta tracking Resource
     let time = time::Time::new();
 
+    let asset_loader = asset_loader::AssetLoader::from_relative_exe_path(std::path::Path::new("assets"))?;
+
     // Insert the resources
     resources.insert(settings);
     resources.insert(input_state);
     resources.insert(phys_settings);
-    //resources.insert(asset_loader);
+    resources.insert(asset_loader);
     resources.insert(game_state);
     resources.insert(time);
 
     Ok(())
 }
 
-/*
-fn run() -> Result<(), anyhow::Error> {
-
-
-    //------------------------------
-    // main loop
-    //------------------------------
-    while !resources.get::<GameState>()
-        .ok_or(Error::msg("GameState not found"))?
-        .should_exit
-    {
-        // Execute the schedule
-        schedule.execute(&mut world, &mut resources);
-    }
-
-    let gl = resources.get::<gl::Gl>()
-        .ok_or(Error::msg("Gl not found"))?;
-
-    // Destroy all things that need to be destroyed
-    let mut query = legion::Write::<graphics::Model>::query();
-
-    for model in query.iter_mut(&mut world) {
-        unsafe { model.destroy(&gl); }
-    }
-
-    Ok(())
-}*/
-
 // TODO: Create a Loading state and add a loding screen
-fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::Device) -> Result<()> {
+fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::Device, encoder: &mut wgpu::CommandEncoder) -> Result<()> {
 
-    let plane_model_data = graphics::mesh::create_plane(10);
+    //let (plane_model, cube_model) = {
 
-    let plane_model = {
+    //    let plane_model_data = graphics::mesh::create_plane(10);
+    //    let cube_model_data = graphics::mesh::create_cube();
+
+    //    let plane = graphics::mesh::Model::from_data(plane_model_data, device, &mesh_pass);
+    //    let cube = graphics::mesh::Model::from_data(cube_model_data, device, &mesh_pass);
+
+    //    (plane, cube)
+    //};
+
+    let plane_pos = physics::Position::from(
+        na::Isometry3::from_parts(
+            na::Translation3::new(0.0, 0.0, 0.0),
+            na::UnitQuaternion::from_axis_angle(
+                &na::Vector3::x_axis(),
+                15_f32.to_radians(),
+            )
+        )
+    );
+
+    {
+        let loader = resources.get::<asset_loader::AssetLoader>().unwrap();
+        let cube_model_data = loader.load_simple_model("models/test_cube.obj")?;
 
         let mesh_pass = resources.get::<graphics::mesh::MeshPass>()
             .ok_or(Error::msg("MeshPass not found"))?;
 
-        graphics::mesh::Model::from_data(plane_model_data, device, &mesh_pass)
-    };
+        let cube_model = graphics::mesh::Model::from_data(
+            cube_model_data,
+            device,
+            encoder,
+            &mesh_pass
+        );
 
-    world.push((plane_model, 0));
+        let cube_pos = physics::Position::from(
+            na::Isometry3::from_parts(
+                na::Translation3::new(10.0, 10.0, 2.0),
+                na::UnitQuaternion::from_axis_angle(
+                    &na::Vector3::x_axis(),
+                    15_f32.to_radians(),
+                )
+            )
+        );
+
+        let cube_scale = physics::Scale::from(
+            na::Vector3::new(2.0, 2.0, 2.0)
+        );
+
+        world.push((cube_model, cube_pos, cube_scale));
+    }
+
+    //world.push((plane_model, plane_pos, ()));
+
+    //world.push((cube_model, cube_pos, cube_scale));
+
     // Create the player
-    //let pos = 
-    //physics::Position::from(na::Isometry3::<f32>::from_parts(
-    //    na::Translation3::new(1.0, 5.0, 3.0),
-    //    na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), -90.0_f32.to_radians()),
-    //));
-    //use nc::shape::{ShapeHandle, Capsule};
-    //let collider = physics::Collider::from(
-    //    ShapeHandle::new(Capsule::new(1.0, 1.0))
-    //);
-    //let vel = physics::Velocity::new(
-    //    na::Vector3::repeat(0.0_f32), 
-    //    na::Vector3::repeat(0.0)
-    //);
-    //use player::*;
-    //let player = Player {
-    //    state: PlayerState::Noclip,
-    //    ground_entity: Some(map),
-    //    flags: 0,
-    //};
+    let pos = 
+    physics::Position::from(na::Isometry3::<f32>::from_parts(
+        na::Translation3::new(0.0, -5.0, 6.0),
+        na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), -90.0_f32.to_radians()),
+    ));
+    use nc::shape::{ShapeHandle, Capsule};
+    let collider = physics::Collider::from(
+        ShapeHandle::new(Capsule::new(1.0, 1.0))
+    );
+    let vel = physics::Velocity::new(
+        na::Vector3::repeat(0.0_f32), 
+        na::Vector3::repeat(0.0)
+    );
+    use player::*;
+    let player = Player {
+        state: PlayerState::Noclip,
+        ground_entity: None,
+        flags: 0,
+    };
     // Add the player to the world and keep it's Entity (an ID)
     // so we can add it to a Resource to track the single main player
-    //let atlas = world.push((pos, collider, vel, player));
+    let atlas = world.push((pos, collider, vel, player));
 
-    //let atlas = player::Atlas { entity: atlas };
-    //resources.insert(atlas);
+    let atlas = player::Atlas { entity: atlas };
+    resources.insert(atlas);
 
     Ok(())
 }
@@ -305,10 +326,10 @@ use legion::{system, Entity, world::SubWorld, IntoQuery};
 #[system]
 #[read_component(Entity)]
 pub fn test(
-    world: &mut SubWorld
+    _world: &mut SubWorld
 ) {
     //let mut query = <&Entity>::query();
     //for entity in query.iter(world) {
-    //    println!("entity: {:?}", entity);
+    //    debug!("entity: {:?}", entity);
     //}
 }

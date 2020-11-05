@@ -46,7 +46,6 @@ pub fn player_movement(
     world: &mut SubWorld,
 ) {
     if game_state.paused { return; }
-    info!("state: {:?}", player.state);
     // Get the all components belonging to the player-controlled player (here called Atlas)
     // For now, we only care about the Atlas player
     if *entity != atlas.entity { return; }
@@ -101,7 +100,7 @@ pub fn player_movement(
             }
         }
     } // Categorize position
-    info!("ground: {:?}", player.ground_entity);
+    //info!("ground: {:?}", player.ground_entity);
 
     // TODO: Check for ducking
     // check_duck();
@@ -139,7 +138,6 @@ pub fn player_movement(
             }
             position.translation.vector += velocity.linear;
             camera.position = **position;
-            info!("pos: {:?}", **position);
             // PM_StepSlideMove();
 
             // PM_DropTimers();
@@ -147,46 +145,55 @@ pub fn player_movement(
         },
         PlayerState::Noclip => {
 
-            let fmove = input_state.fwdmove * game_settings.noclip_speed;
-            let smove = input_state.sidemove * game_settings.noclip_speed;
+            //let fmove = input_state.fwdmove * game_settings.noclip_speed;
+            //let smove = input_state.sidemove * game_settings.noclip_speed;
 
-            let forward = (position.rotation * na::Vector3::x()).normalize() * fmove;
-            // TODO: negate?
-            let side = (position.rotation * na::Vector3::y()).normalize() * smove;
+            //let forward = (position.rotation * na::Vector3::x()).normalize() * fmove;
+            //// TODO: negate?
+            //let side = (position.rotation * na::Vector3::y()).normalize() * smove;
             
-            let mut wishvel = forward + side;
-            wishvel.z += input_state.upmove * game_settings.noclip_speed;
+            //let mut wishvel = forward + side;
+            //wishvel.z += input_state.upmove * game_settings.noclip_speed;
 
-            let wishdir = wishvel.clone();
-            let mut wishspeed = wishdir.norm();
+            //let wishdir = wishvel.clone();
+            //let mut wishspeed = wishdir.norm();
 
-            // Clamp to max speed
-            if wishspeed > MAXSPEED {
-                // Scale the velocity
-                wishvel *= MAXSPEED/wishspeed;
-                wishspeed = MAXSPEED;
-            }
+            //// Clamp to max speed
+            //if wishspeed > MAXSPEED {
+            //    // Scale the velocity
+            //    wishvel *= MAXSPEED/wishspeed;
+            //    wishspeed = MAXSPEED;
+            //}
 
             // Accelerate
             // This is where the bunnyhop bug occurs
             {
-                let current_speed = velocity.linear.dot(&wishdir);
+                let wishdir = na::Vector3::new(
+                    input_state.sidemove,
+                    input_state.fwdmove,
+                    input_state.upmove,
+                //).normalize();
+                );
+                //let current_speed = velocity.linear.dot(&wishdir);
 
-                // Reduce wishspeed by the amount of veer
-                let addspeed = wishspeed - current_speed;
+                //let wishspeed = 0.0;
+                //// Reduce wishspeed by the amount of veer
+                //let addspeed = wishspeed - current_speed;
 
-                // If not going to add any speed, done
-                let mut accelspeed = 0.0;
-                if addspeed > 0.0 {
-                    accelspeed = NOCLIP_ACCELERATE * time.delta * wishspeed * FRICTION;
-                }
+                //// If not going to add any speed, done
+                //let mut accelspeed = 0.0;
+                //if addspeed > 0.0 {
+                //    accelspeed = NOCLIP_ACCELERATE * time.delta * wishspeed * FRICTION;
+                //}
 
-                // Cap at addspeed
-                if accelspeed > addspeed { accelspeed = addspeed }
+                //// Cap at addspeed
+                //if accelspeed > addspeed { accelspeed = addspeed }
 
-                info!("wish * accel {:?}", wishdir * accelspeed);
+                //info!("wish * accel {:?}", wishdir * accelspeed);
                 // Finally, adjust velocity
-                velocity.linear += wishdir * accelspeed;
+                let accelspeed = 1.0;
+                position.rotation = camera.position.rotation;
+                velocity.linear = position.rotation * wishdir * accelspeed;
 
             } // Accelerate
 
@@ -198,6 +205,7 @@ pub fn player_movement(
             // Sync camera pos to player pos
             camera.position = **position;
 
+            debug!("pos: {}", **position);
             // PM_NoclipMove();
             // PM_DropTimers();
             // Move only the camera

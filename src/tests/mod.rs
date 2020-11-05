@@ -31,7 +31,7 @@ fn camera_test() {
     let view = {
         let position: na::Point3<f32> = 
             pos.translation.vector.into();
-        let target = pos * na::Point3::new(1.0, 0.0, 0.0);
+        let target = pos * na::Point3::new(0.0, 1.0, 0.0);
         let up = pos * na::Vector3::z();
         na::Matrix::look_at_rh(&position, &target, &up)
     };

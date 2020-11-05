@@ -15,6 +15,8 @@ pub struct MeshPass {
     pub global_bind_group_layout: wgpu::BindGroupLayout,
     pub global_bind_group: wgpu::BindGroup,
     pub global_uniform_buf: wgpu::Buffer,
+    depth_texture: wgpu::Texture,
+    depth_texture_view: wgpu::TextureView,
 }
 
 impl MeshPass {
@@ -25,27 +27,11 @@ impl MeshPass {
         _world: &mut World,
         _resources: &mut Resources,
     ) -> Result<MeshPass> {
-        let size = window.inner_size();
-
         // Load shaders from disk
         let vs_module = device.create_shader_module(wgpu::include_spirv!("shader.vert.spv"));
         let fs_module = device.create_shader_module(wgpu::include_spirv!("shader.frag.spv"));
 
-        let mesh_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStage::VERTEX,
-                    ty: wgpu::BindingType::UniformBuffer {
-                        dynamic: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
-        });
-
+        // Set 0
         let global_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
@@ -61,6 +47,41 @@ impl MeshPass {
                     count: None
                 }
             ]
+        });
+
+        // Set 1
+        let mesh_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                // Model matrix (na::Matrix4 / mat4)
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStage::VERTEX,
+                    ty: wgpu::BindingType::UniformBuffer {
+                        dynamic: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Texture sampler (sampler2D)
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler { comparison: false },
+                    count: None,
+                },
+                // Sampled texture (texture2D)
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::SampledTexture {
+                        multisampled: false,
+                        component_type: wgpu::TextureComponentType::Float,
+                        dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+            ],
         });
 
         // Those get uploaded before rendering every frame either way
@@ -86,33 +107,38 @@ impl MeshPass {
             ],
         });
 
-        // MeshPipeline (untextured)
-        //let part_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        //    label: None,
-        //    entries: &[
-        //        // Material factors
-        //        wgpu::BindGroupLayoutEntry {
-        //            binding: 0,
-        //            visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-        //            ty: wgpu::BindingType::UniformBuffer {
-        //                dynamic: false,
-        //                min_binding_size: wgpu::BufferSi
-        //            }
-        //        }
-        //    ]
-        //})
-
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Main render pipeline layout"),
+            label: Some("main pipeline layout"),
             bind_group_layouts: &[
+                // Set 0
                 &global_bind_group_layout,
+                // Set 1
                 &mesh_bind_group_layout,
             ],
             push_constant_ranges: &[]
         });
 
+        // Depth testing
+        let depth_texture = device.create_texture(
+            &wgpu::TextureDescriptor {
+                label: Some("depth texture"),
+                size: wgpu::Extent3d {
+                    width: sc_desc.width,
+                    height: sc_desc.height,
+                    depth: 1
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            }
+        );
+
+        let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Main render pipeline"),
+            label: Some("main pipeline"),
             layout: Some(&pipeline_layout),
             vertex_stage: wgpu::ProgrammableStageDescriptor {
                 module: &vs_module,
@@ -134,7 +160,7 @@ impl MeshPass {
             rasterization_state: None,
             primitive_topology: wgpu::PrimitiveTopology::TriangleList,
             color_states: &[sc_desc.format.into()],
-            //    // TODO: Why is this repeated?
+            //    // ?: Why is this repeated?
             //    wgpu::ColorStateDescriptor {
             //        format: swap_chain_desc.format,
             //        color_blend: wgpu::BlendDescriptor::REPLACE,
@@ -148,13 +174,12 @@ impl MeshPass {
             //        write_mask: wgpu::ColorWrite::ALL,
             //    },
             //],
-            //depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
-            //    format: wgpu::TextureFormat::Depth32Float,
-            //    depth_write_enabled: true,
-            //    depth_compare: wgpu::CompareFunction::Less,
-            //    stencil: wgpu::StencilStateDescriptor::default(),
-            //}),
-            depth_stencil_state: None,
+            depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilStateDescriptor::default(),
+            }),
             vertex_state: wgpu::VertexStateDescriptor {
                 index_format: wgpu::IndexFormat::Uint16,
                 vertex_buffers: &[wgpu::VertexBufferDescriptor {
@@ -166,6 +191,8 @@ impl MeshPass {
                             0 => Float3,
                             // Normal
                             1 => Float3,
+                            // UV
+                            2 => Float2,
                         ],
                 }],
             },
@@ -180,6 +207,8 @@ impl MeshPass {
             global_bind_group_layout,
             global_bind_group: global_bind_group,
             global_uniform_buf: global_uniform_buf,
+            depth_texture: depth_texture,
+            depth_texture_view: depth_texture_view,
         };
 
         Ok(mesh_pass)
@@ -206,12 +235,16 @@ impl Pass for MeshPass {
                     store: true,
                 },
             }],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
+                attachment: &self.depth_texture_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
         });
         let camera = resources.get::<Camera>().ok_or(Error::msg("Couldn't find the Camera"))?;
-
-        debug!("cam_rot: {:?}", camera.position.rotation);
-
 
         // Upload global uniforms
         let view_proj = camera.get_vp_matrix();
@@ -229,9 +262,14 @@ impl Pass for MeshPass {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.global_bind_group, &[]);
         // Per entity
-        let mut query = <&Model>::query();
-        for model in query.iter(world) {
-            let transform: [[f32; 4]; 4] = model.world.into();
+        use crate::physics::*;
+        let mut query = <(&Model, &Position, Option<&Scale>)>::query();
+        for (model, position, maybe_scale) in query.iter(world) {
+            let mut transform = position.to_homogeneous();
+            if let Some(scale) = maybe_scale {
+                transform = transform.prepend_nonuniform_scaling(scale);
+            }
+            let transform: [[f32; 4]; 4] = transform.into();
             queue.write_buffer(
                 &model.uniform_buf,
                 0,
@@ -252,17 +290,11 @@ impl Pass for MeshPass {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)] 
+#[derive(Clone, Copy, Pod, Zeroable, PartialEq)] 
 pub struct Vertex {
-    pos: [f32; 3],
-    normal: [f32; 3],
-}
-
-pub fn vertex(pos: [i16; 3], nor: [i16; 3]) -> Vertex {
-    Vertex {
-        pos: [pos[0].into(), pos[1].into(), pos[2].into()],
-        normal: [nor[0].into(), nor[1].into(), nor[2].into()],
-    }
+    pub pos: [f32; 3],
+    pub normal: [f32; 3],
+    pub uv: [f32; 2],
 }
 
 #[repr(C)]
@@ -278,9 +310,15 @@ pub struct ModelUniforms {
     pub(crate)model: [[f32; 4]; 4],
 }
 
+pub struct ModelData {
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u16>,
+    pub texture_img: image::RgbaImage,
+}
+
+use crate::asset_loader::AssetLoader;
 pub struct Model {
-    pub world: na::Matrix4<f32>,
-    // TODO: Rc
+    // TODO: Rc<> for multiple models with the same data (it's all read-only either way)
     pub vertex_buf: wgpu::Buffer,
     pub index_buf: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
@@ -289,39 +327,50 @@ pub struct Model {
     pub uniform_offset: wgpu::DynamicOffset,
 }
 
-pub struct ModelData {
-    pub vertices: Vec<Vertex>,
-    pub indices: Vec<u16>,
-}
-
 impl Model {
-    pub fn from_data(data: ModelData, device: &mut wgpu::Device, pass: &MeshPass) -> Model {
+    pub fn from_data(data: ModelData, device: &mut wgpu::Device, encoder: &mut wgpu::CommandEncoder, pass: &MeshPass) -> Model {
 
         let vertex_data = data.vertices;
         let index_data = data.indices;
 
         let vertex_buf = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some("Cube Vertex Buffer"),
+                label: None,
                 contents: bytemuck::cast_slice(&vertex_data),
                 usage: wgpu::BufferUsage::VERTEX,
             }
         );
         let index_buf = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
-                label: Some("Cube Index Buffer"),
+                label: None,
                 contents: bytemuck::cast_slice(&index_data),
                 usage: wgpu::BufferUsage::INDEX,
             }
         );
+
         let model_uniform = ModelUniforms {
             model: na::Matrix4::identity().into(),
         };
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Cube uniform buffer"),
+            label: None,
             contents: bytemuck::bytes_of(&model_uniform),
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
         });
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: None,
+            compare: None,
+            // TODO: Set filters to FilterMode::Linear for smoother textures
+            ..Default::default()
+        });
+
+        let texture = AssetLoader::upload_texture(device, encoder, true, data.texture_img);
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: None,
+            // TODO: Review and customize
+            ..Default::default()
+        });
+
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &pass.mesh_bind_group_layout,
@@ -329,12 +378,19 @@ impl Model {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(uniform_buf.slice(..)),   
-                }
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),   
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                },
             ]
         });
 
         Model {
-            world: na::Matrix4::identity(),
             bind_group: bind_group,
             uniform_buf: uniform_buf,
             vertex_buf: vertex_buf,
@@ -342,70 +398,5 @@ impl Model {
             index_count: index_data.len(),
             uniform_offset: 0,
         }
-    }
-}
-
-pub fn create_cube() -> ModelData {
-    let vertex_data = [
-        // top (0, 0, 1)
-        vertex([-1, -1, 1], [0, 0, 1]),
-        vertex([1, -1, 1], [0, 0, 1]),
-        vertex([1, 1, 1], [0, 0, 1]),
-        vertex([-1, 1, 1], [0, 0, 1]),
-        // bottom (0, 0, -1)
-        vertex([-1, 1, -1], [0, 0, -1]),
-        vertex([1, 1, -1], [0, 0, -1]),
-        vertex([1, -1, -1], [0, 0, -1]),
-        vertex([-1, -1, -1], [0, 0, -1]),
-        // right (1, 0, 0)
-        vertex([1, -1, -1], [1, 0, 0]),
-        vertex([1, 1, -1], [1, 0, 0]),
-        vertex([1, 1, 1], [1, 0, 0]),
-        vertex([1, -1, 1], [1, 0, 0]),
-        // left (-1, 0, 0)
-        vertex([-1, -1, 1], [-1, 0, 0]),
-        vertex([-1, 1, 1], [-1, 0, 0]),
-        vertex([-1, 1, -1], [-1, 0, 0]),
-        vertex([-1, -1, -1], [-1, 0, 0]),
-        // front (0, 1, 0)
-        vertex([1, 1, -1], [0, 1, 0]),
-        vertex([-1, 1, -1], [0, 1, 0]),
-        vertex([-1, 1, 1], [0, 1, 0]),
-        vertex([1, 1, 1], [0, 1, 0]),
-        // back (0, -1, 0)
-        vertex([1, -1, 1], [0, -1, 0]),
-        vertex([-1, -1, 1], [0, -1, 0]),
-        vertex([-1, -1, -1], [0, -1, 0]),
-        vertex([1, -1, -1], [0, -1, 0]),
-    ];
-
-    let index_data: &[u16] = &[
-        0, 1, 2, 2, 3, 0, // top
-        4, 5, 6, 6, 7, 4, // bottom
-        8, 9, 10, 10, 11, 8, // right
-        12, 13, 14, 14, 15, 12, // left
-        16, 17, 18, 18, 19, 16, // front
-        20, 21, 22, 22, 23, 20, // back
-    ];
-
-    ModelData {
-        vertices: vertex_data.to_vec(),
-        indices: index_data.to_vec(),
-    }
-}
-
-pub fn create_plane(size: i16) -> ModelData {
-    let vertex_data = [
-        vertex([size, -size, 0], [0, 0, 1]),
-        vertex([size, size, 0], [0, 0, 1]),
-        vertex([-size, -size, 0], [0, 0, 1]),
-        vertex([-size, size, 0], [0, 0, 1]),
-    ];
-
-    let index_data: &[u16] = &[0, 1, 2, 2, 1, 3];
-
-    ModelData {
-        vertices: vertex_data.to_vec(),
-        indices: index_data.to_vec(),
     }
 }
