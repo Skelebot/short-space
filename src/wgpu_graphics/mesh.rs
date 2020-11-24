@@ -216,6 +216,24 @@ impl MeshPass {
 }
 
 impl Pass for MeshPass {
+    fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &mut wgpu::Device) -> Result<()> {
+        self.depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("depth texture"),
+            size: wgpu::Extent3d {
+                width: sc_desc.width,
+                height: sc_desc.height,
+                depth: 1
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            }
+        );
+        self.depth_texture_view = self.depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        Ok(())
+    }
     fn render(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
@@ -290,7 +308,7 @@ impl Pass for MeshPass {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable, PartialEq)] 
+#[derive(Clone, Copy, Pod, Zeroable, PartialEq, Debug)] 
 pub struct Vertex {
     pub pos: [f32; 3],
     pub normal: [f32; 3],

@@ -18,4 +18,9 @@ pub trait Pass {
         _world: &World,
         _resources: &Resources,
     ) -> Result<()>;
+    fn resize(
+        &mut self,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        device: &mut wgpu::Device,
+    ) -> Result<()>;
 }

@@ -87,7 +87,7 @@ pub fn player_movement(
                     // easier. Consider changing it to true
                     false
                 );
-                info!("hit: {}", intersection.is_some());
+                debug!("hit: {}", intersection.is_some());
                 // Was on ground, but now suddenly i'm not
                 if let Some(hit) = intersection {
                     // If we hit a steep plane, we are not on ground
@@ -100,7 +100,6 @@ pub fn player_movement(
             }
         }
     } // Categorize position
-    //info!("ground: {:?}", player.ground_entity);
 
     // TODO: Check for ducking
     // check_duck();
@@ -189,9 +188,8 @@ pub fn player_movement(
                 //// Cap at addspeed
                 //if accelspeed > addspeed { accelspeed = addspeed }
 
-                //info!("wish * accel {:?}", wishdir * accelspeed);
                 // Finally, adjust velocity
-                let accelspeed = 1.0;
+                let accelspeed = 3.0;
                 position.rotation = camera.position.rotation;
                 velocity.linear = position.rotation * wishdir * accelspeed;
 

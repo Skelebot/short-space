@@ -6,6 +6,7 @@ use crate::wgpu_graphics::mesh::{Vertex, ModelData};
 use wgpu::util::DeviceExt;
 
 use wavefront_obj as wobj;
+use wobj::obj::{Primitive, VTNIndex};
 
 pub struct AssetLoader {
     root_path: PathBuf,
@@ -38,7 +39,6 @@ impl AssetLoader {
             format_err!("Could not find parent directory of obj file: {:?}", 
                 self.root_path.join(&path)))?;
 
-        info!("path: {:?}", &self.root_path.join(&path).to_str().unwrap());
         // A set of objects; a single wavefront OBJ file can contain multiple objects
         let obj_set = wobj::obj::parse(&obj_file.as_str()).map_err(
             |err| anyhow!(err).context(format_err!(
@@ -73,78 +73,72 @@ impl AssetLoader {
         };
 
         let object = &obj_set.objects[0];
-        info!("Loading model: {}", object.name);
+        debug!("Loading model: {}", object.name);
 
         let material = &mtl_set.materials[0];
-        info!("Loading material: {}", material.name);
+        debug!("Loading material: {}", material.name);
 
-        let vertices: Vec<[f32; 3]> = object.vertices.iter().map(|v| [v.x as f32, v.y as f32, v.z as f32]).collect();
-        let uvs: Vec<[f32; 2]> = object.tex_vertices.iter().map(|uv| [uv.u as f32, uv.v as f32]).collect();
-        let normals: Vec<[f32; 3]> = object.normals.iter().map(|n| [n.x as f32, n.y as f32, n.z as f32]).collect();
+        let mut indices: Vec<u16> = Vec::new();
+        let mut vertices: Vec<Vertex> = Vec::new();
 
-        let mut model_vertices = Vec::<Vertex>::new();
-        let mut indices = Vec::<u16>::new();
-
+        let mut add_vertex = |vtni: &VTNIndex| {
+            if let (Some(uvi), Some(ni)) = (vtni.1, vtni.2) {
+                let vertex = Vertex {
+                    pos: match object.vertices[vtni.0] { wobj::obj::Vertex {x, y, z} => [x as f32, y as f32, z as f32]},
+                    uv: match object.tex_vertices[uvi] { wobj::obj::TVertex {u, v, ..} => [u as f32, v as f32]},
+                    normal: match object.normals[ni] { wobj::obj::Normal {x, y, z} => [x as f32, y as f32, z as f32]},
+                };
+                if let Some((i, _)) = vertices.iter().enumerate().find(|(_, v)| v == &&vertex) {
+                    indices.push(i as u16);
+                } else {
+                    // Push a new index
+                    indices.push(vertices.len() as u16);
+                    vertices.push(vertex);
+                }
+            }
+        };
         for geom in object.geometry.iter() {
             for shape in geom.shapes.iter() {
-                use wobj::obj::{Primitive, VTNIndex};
-                let mut v_tmp = Vec::<VTNIndex>::new();
                 match shape.primitive {
-                    Primitive::Point(vtni) => v_tmp.push(vtni),
-                    Primitive::Line(vtni0, vtni1) => v_tmp.extend(&[vtni0, vtni1]),
-                    Primitive::Triangle(vtni0, vtni1, vtni2) => v_tmp.extend(&[vtni0, vtni1, vtni2]),
-                }
-                for vtni in v_tmp {
-                    indices.push(vtni.0 as u16);
-                    if let (Some(uvi), Some(ni)) = (vtni.1, vtni.2) {
-                        model_vertices.push(Vertex {
-                            pos: vertices[vtni.0],
-                            uv: uvs[uvi],
-                            normal: normals[ni],
-                        })
+                    Primitive::Point(vtni) => add_vertex(&vtni),
+                    Primitive::Line(vtni0, vtni1) => {
+                        add_vertex(&vtni0);
+                        add_vertex(&vtni1);
+                    },
+                    Primitive::Triangle(vtni0, vtni1, vtni2) => {
+                        add_vertex(&vtni0);
+                        add_vertex(&vtni1);
+                        add_vertex(&vtni2);
                     }
                 }
             }
         }
 
-        // Remove duplicate Vertexes if their drawing index is the same
-        //model_vertices = {
-        //    let mut tmp = model_vertices.into_iter().enumerate().map(|(i, v)| (indices[i], v)).collect::<Vec<(u16, Vertex)>>();
-        //    tmp.sort_by_key(|(i, _)| *i);
-        //    tmp.dedup_by_key(|(i, _)| *i);
-        //    tmp.into_iter().map(|(_, v)| v).collect()
-        //};
-
-        info!("Lengths: \n vertices: {},\n uvs: {},\n normals: {},\n indices: {},\n model_vertices: {}",
-            vertices.len(),
-            uvs.len(),
-            normals.len(),
-            indices.len(),
-            model_vertices.len(),
-        );
-
         let texture_path = material.uv_map.as_ref().ok_or(
             format_err!("Expected the material {:?} to have a texture (uv_map)", material.name))?;
 
-        let img = self.load_texture(obj_parent.join(texture_path))?;
+        let img = self.load_texture(obj_parent.join(texture_path))?
+            // (?): fixes incorrect texture coords when loading obj models
+            .flipv();
+
+        // Convert the image to Rgba
+        let texture_img = match img {
+            image::DynamicImage::ImageRgba8(img) => img,
+            img => img.to_rgba()
+        };
 
         return Ok(ModelData {
-            vertices: model_vertices,
-            indices: indices,
-            texture_img: img,
+            vertices,
+            indices,
+            texture_img,
         })
     }
 
-    pub fn load_texture(&self, path: impl AsRef<Path>) -> Result<image::RgbaImage> {
-        Ok(
-            match image::open(self.root_path.join(&path))
-                .map_err(|err| 
-                    anyhow!(err).context(format_err!("Failed to open image: {:?}", path.as_ref())))? 
-            {
-                image::DynamicImage::ImageRgba8(img) => img,
-                img @ _ => img.to_rgba(),
-            }
-        )
+    pub fn load_texture(&self, path: impl AsRef<Path>) -> Result<image::DynamicImage> {
+        let img = image::open(self.root_path.join(&path))
+            .map_err(|err| 
+                anyhow!(err).context(format_err!("Failed to open image: {:?}", path.as_ref())))?;
+        Ok(img)
     }
 
     pub fn upload_texture(
@@ -157,7 +151,7 @@ impl AssetLoader {
         let (img_width, img_height) = (img.width(), img.height());
         let texture_extent = wgpu::Extent3d {
             width: img_width,
-            height: img_width,
+            height: img_height,
             depth: 1,
         };
         // The texture binding to copy data to and use as a handle to it
@@ -185,7 +179,7 @@ impl AssetLoader {
                 layout: wgpu::TextureDataLayout {
                     offset: 0,
                     bytes_per_row: 4 * img_width,
-                    rows_per_image: img_width,
+                    rows_per_image: img_height,
                 },
             }, 
             wgpu::TextureCopyView {

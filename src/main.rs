@@ -85,7 +85,7 @@ fn main() -> Result<(), anyhow::Error> {
 }
 
 async fn run(
-    device: wgpu::Device,
+    mut device: wgpu::Device,
     mut swap_chain: wgpu::SwapChain,
     mut sc_desc: wgpu::SwapChainDescriptor,
     surface: wgpu::Surface,
@@ -141,16 +141,17 @@ async fn run(
                 let mut camera = resources.get_mut::<graphics::Camera>().unwrap();
                 camera.update_aspect(size.width as f32/size.height as f32);
                 let proj_view: [[f32; 4]; 4] = camera.get_vp_matrix().into();
+                swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
                 // Update the mesh pass
-                let mesh_pass = resources.get::<graphics::mesh::MeshPass>().unwrap();
+                let mut mesh_pass = resources.get_mut::<graphics::mesh::MeshPass>().unwrap();
                 queue.write_buffer(
                     &mesh_pass.global_uniform_buf,
                     0,
                     // FIXME: cast_slice()?
                     bytemuck::bytes_of(&proj_view),
                 );
-                swap_chain = device.create_swap_chain(&surface, &sc_desc);
+                mesh_pass.resize(&sc_desc, &mut device);
             },
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::KeyboardInput { input, .. } => input::handle_keyboard_input(input, &mut world, &mut resources),
@@ -272,10 +273,10 @@ fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::
 
         let cube_pos = physics::Position::from(
             na::Isometry3::from_parts(
-                na::Translation3::new(10.0, 10.0, 2.0),
+                na::Translation3::new(0.0, 10.0, 0.0),
                 na::UnitQuaternion::from_axis_angle(
-                    &na::Vector3::x_axis(),
-                    15_f32.to_radians(),
+                    &na::Vector3::z_axis(),
+                    0_f32.to_radians(),
                 )
             )
         );
@@ -294,7 +295,7 @@ fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::
     // Create the player
     let pos = 
     physics::Position::from(na::Isometry3::<f32>::from_parts(
-        na::Translation3::new(0.0, -5.0, 6.0),
+        na::Translation3::new(0.0, 0.0, 0.0),
         na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), -90.0_f32.to_radians()),
     ));
     use nc::shape::{ShapeHandle, Capsule};

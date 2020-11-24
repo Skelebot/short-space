@@ -11,7 +11,7 @@ pub use pass::Pass;
 mod camera;
 pub use camera::Camera;
 
-pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(
+pub async fn setup(_world: &mut World, _resources: &mut Resources) -> Result<(
     wgpu::Device,
     wgpu::SwapChain,
     wgpu::SwapChainDescriptor,
