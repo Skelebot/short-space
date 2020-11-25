@@ -1,5 +1,3 @@
-//use world::Scene;
-
 pub struct GameState {
     pub should_exit: bool,
     pub paused: bool,

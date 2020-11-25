@@ -1,9 +1,10 @@
-use winit::{
-    event_loop::EventLoop,
-    window::Window,
-};
-use anyhow::Result;
+
+use anyhow::{Result, Error};
 use legion::{World, Resources};
+use winit::dpi::PhysicalSize;
+
+mod setup;
+pub use setup::setup;
 
 pub mod mesh;
 mod pass;
@@ -11,81 +12,51 @@ pub use pass::Pass;
 mod camera;
 pub use camera::Camera;
 
-pub async fn setup(_world: &mut World, _resources: &mut Resources) -> Result<(
-    wgpu::Device,
-    wgpu::SwapChain,
-    wgpu::SwapChainDescriptor,
-    wgpu::Surface,
-    wgpu::Queue,
-    winit::window::Window,
-    winit::event_loop::EventLoop<()>,
-)> {
-    let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
-    let event_loop = EventLoop::new();
-    let window = Window::new(&event_loop)?;
+pub struct Graphics {
+    pub device: wgpu::Device,
+    pub swap_chain: wgpu::SwapChain,
+    pub sc_desc: wgpu::SwapChainDescriptor,
+    pub surface: wgpu::Surface,
+    pub queue: wgpu::Queue,
+    pub window: winit::window::Window,
+    pub render_passes: Vec<Box<dyn Pass>>,
+}
 
-    let backend = if let Ok(backend) = std::env::var("WGPU_BACKEND") {
-        match backend.to_lowercase().as_str() {
-            "vulkan" => wgpu::BackendBit::VULKAN,
-            "metal" => wgpu::BackendBit::METAL,
-            "dx12" => wgpu::BackendBit::DX12,
-            "dx11" => wgpu::BackendBit::DX11,
-            "gl" => wgpu::BackendBit::GL,
-            "webgpu" => wgpu::BackendBit::BROWSER_WEBGPU,
-            other => panic!("Unknown backend: {}", other),
+impl Graphics {
+    pub fn resize(&mut self, size: PhysicalSize<u32>, world: &mut World, resources: &mut Resources) -> Result<()> {
+        // Recreate the swap chain with the new size
+        self.sc_desc.width = size.width;
+        self.sc_desc.height = size.height;
+        self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+        for pass in self.render_passes.iter_mut() {
+            pass.resize(
+                &mut self.device,
+                &mut self.queue,
+                &self.sc_desc,
+                &world,
+                &resources,
+            )?;
         }
-    } else { wgpu::BackendBit::PRIMARY };
 
-    let instance = wgpu::Instance::new(backend);
-    let size = window.inner_size();
-    let surface = unsafe { instance.create_surface(&window) };
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            //power_preference: wgpu::PowerPreference::HighPerformance,
-            power_preference: wgpu::PowerPreference::default(),
-            // Request an adapter which can render to a surface
-            compatible_surface: Some(&surface),
-        })
-        .await
-        .ok_or(
-            anyhow::format_err!(
-                "Couldn't find a compatible graphics adapter for backend: {:?}\nIf you want to force a different backend, set the WGPU_BACKEND environmental variable.\nKeep in mind that OpenGL is not currently supported.",
-            backend))?;
+        Ok(())
+    }
 
-    // Optional trace file
-    let trace_dir = std::env::var("WGPU_TRACE");
+    pub fn render(&mut self, world: &mut World, resources: &mut Resources) -> Result<()> {
+        let mut frame = self.swap_chain
+            .get_current_frame()
+            .map_err(|err| 
+                Error::msg("Failed to acquire next swap chain texture")
+                    .context(err)
+            )?
+            .output;
 
-    // Create the logical device and command queue
-    let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                features: wgpu::Features::empty(),
-                limits: wgpu::Limits::default(),
-                shader_validation: true,
-            }, 
-            trace_dir.ok().as_ref().map(std::path::Path::new),
-        )
-        .await
-        .map_err(|err| anyhow::anyhow!(err).context(anyhow::Error::msg("Failed to create the graphics device")))?;
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });                    
 
-    let swap_chain_desc = wgpu::SwapChainDescriptor {
-        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
-        format: swapchain_format,
-        width: size.width,
-        height: size.height,
-        // Wait for vsync, but do not cap framerate
-        present_mode: wgpu::PresentMode::Mailbox,
-    };
+        for pass in self.render_passes.iter_mut() {
+            pass.render(&mut encoder, &mut self.queue, &mut frame, &world, &resources)?;
+        }
 
-    let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
-    
-    Ok((
-        device,
-        swap_chain,
-        swap_chain_desc,
-        surface,
-        queue,
-        window,
-        event_loop,
-    ))
+        self.queue.submit(Some(encoder.finish()));
+        Ok(())
+    }
 }

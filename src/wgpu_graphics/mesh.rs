@@ -9,9 +9,10 @@ use crate::graphics::Camera;
 
 use legion::{World, Resources, IntoQuery};
 
+pub struct MeshBindGroupLayout(std::sync::Arc<wgpu::BindGroupLayout>);
 pub struct MeshPass {
     pub pipeline: wgpu::RenderPipeline,
-    pub mesh_bind_group_layout: wgpu::BindGroupLayout,
+    pub mesh_bind_group_layout: std::sync::Arc<wgpu::BindGroupLayout>,
     pub global_bind_group_layout: wgpu::BindGroupLayout,
     pub global_bind_group: wgpu::BindGroup,
     pub global_uniform_buf: wgpu::Buffer,
@@ -24,9 +25,12 @@ impl MeshPass {
         device: &mut wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
         _world: &mut World,
-        _resources: &mut Resources,
+        resources: &mut Resources,
     ) -> Result<MeshPass> {
-        // Load shaders from disk
+
+        // Statically link shaders
+        // TODO: Move shaders to assets/ folder
+        // TODO: Actually load shaders from files instead of compiling them into the binary
         let vs_module = device.create_shader_module(wgpu::include_spirv!("shader.vert.spv"));
         let fs_module = device.create_shader_module(wgpu::include_spirv!("shader.frag.spv"));
 
@@ -200,9 +204,15 @@ impl MeshPass {
             alpha_to_coverage_enabled: false,
         });
 
+        // TODO: This is a quick hack to get loading models working;
+        // It *will* get more complicated later, and will have to be replaced
+        let mbgl_arc = std::sync::Arc::new(mesh_bind_group_layout);
+
+        resources.insert(MeshBindGroupLayout(mbgl_arc.clone()));
+
         let mesh_pass = MeshPass {
             pipeline: pipeline,
-            mesh_bind_group_layout,
+            mesh_bind_group_layout: mbgl_arc.clone(),
             global_bind_group_layout,
             global_bind_group: global_bind_group,
             global_uniform_buf: global_uniform_buf,
@@ -215,7 +225,14 @@ impl MeshPass {
 }
 
 impl Pass for MeshPass {
-    fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &mut wgpu::Device) -> Result<()> {
+    fn resize(
+        &mut self,
+        device: &mut wgpu::Device,
+        queue: &mut wgpu::Queue,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        _world: &legion::World,
+        resources: &legion::Resources,
+    ) -> Result<()> {
         self.depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
             size: wgpu::Extent3d {
@@ -231,6 +248,17 @@ impl Pass for MeshPass {
             }
         );
         self.depth_texture_view = self.depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Update the camera
+        let mut camera = resources.get_mut::<Camera>().unwrap();
+        camera.update_aspect(sc_desc.width as f32/sc_desc.height as f32);
+        let proj_view: [[f32; 4]; 4] = camera.get_vp_matrix().into();
+        queue.write_buffer(
+            &self.global_uniform_buf,
+            0,
+            // FIXME: cast_slice()?
+            bytemuck::bytes_of(&proj_view),
+        );
         Ok(())
     }
     fn render(
@@ -345,7 +373,7 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn from_data(data: ModelData, device: &mut wgpu::Device, encoder: &mut wgpu::CommandEncoder, pass: &MeshPass) -> Model {
+    pub fn from_data(data: ModelData, device: &mut wgpu::Device, encoder: &mut wgpu::CommandEncoder, bind_group_layout: &MeshBindGroupLayout) -> Model {
 
         let vertex_data = data.vertices;
         let index_data = data.indices;
@@ -390,7 +418,7 @@ impl Model {
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &pass.mesh_bind_group_layout,
+            layout: &bind_group_layout.0,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,

@@ -10,14 +10,13 @@ extern crate log;
 //mod graphics;
 pub mod wgpu_graphics;
 pub use wgpu_graphics as graphics;
+use graphics::Graphics;
 
 mod asset_loader;
 mod input;
 mod settings;
 mod game_state;
 mod physics;
-//mod networking;
-mod world;
 mod time;
 mod player;
 
@@ -27,15 +26,14 @@ mod tests;
 use settings::GameSettings;
 use anyhow::{Result, Error};
 use legion::{World, Resources, Schedule};
-use wgpu_graphics::Pass;
 
 use game_state::GameState;
 
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::Window,
 };
+use futures::executor::block_on;
 
 fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
@@ -46,51 +44,26 @@ fn main() -> Result<(), anyhow::Error> {
     // Create the resource storage
     let mut resources = Resources::default();
 
-    use futures::executor::block_on;
-    let (
-        mut device, 
-        swap_chain,
-        sc_desc,
-        surface,
-        queue,
-        window,
-        event_loop,
-    ) = block_on(wgpu_graphics::setup(&mut world, &mut resources))?;
+    let (mut graphics, event_loop) = block_on(wgpu_graphics::setup(&mut world, &mut resources))?;
 
-    setup_resources(&mut world, &mut resources, &window)?;
-
-    let mesh_pass = wgpu_graphics::mesh::MeshPass::new(&mut device, &sc_desc, &mut world, &mut resources)?;
-    resources.insert(mesh_pass);
-
-    // Create a (temporary) CommandEncoder for loading data to GPU
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-    setup_scene(&mut world, &mut resources, &mut device, &mut encoder)?;
-    queue.submit(Some(encoder.finish()));
-
-    block_on(
-        run(
-            device,
-            swap_chain,
-            sc_desc,
-            surface,
-            queue,
-            window,
-            event_loop,
-            world,
-            resources
-        )
+    let mesh_pass = wgpu_graphics::mesh::MeshPass::new(
+        &mut graphics.device,
+        &graphics.sc_desc,
+        &mut world,
+        &mut resources
     )?;
+    graphics.render_passes.push(Box::new(mesh_pass));
+
+    setup_resources(&mut world, &mut resources, &graphics.window)?;
+    setup_scene(&mut world, &mut resources, &mut graphics)?;
+
+    block_on(run(graphics, event_loop, world, resources))?;
 
     Ok(())
 }
 
 async fn run(
-    mut device: wgpu::Device,
-    mut swap_chain: wgpu::SwapChain,
-    mut sc_desc: wgpu::SwapChainDescriptor,
-    surface: wgpu::Surface,
-    mut queue: wgpu::Queue,
-    window: Window,
+    mut graphics: Graphics,
     event_loop: EventLoop<()>,
     mut world: legion::World,
     mut resources: legion::Resources,
@@ -101,96 +74,50 @@ async fn run(
         .add_thread_local(time::update_time_system())
         .add_thread_local(player::player_movement_system())
         .build();
-        //.add_thread_local(input::handle_input_system())
-        //.add_thread_local(test_system())
-        //.flush()
-        //.add_thread_local(graphics::render_prepare_system())
-        //.add_thread_local(graphics::render_system())
-        //.add_thread_local(graphics::render_finish_system())
-        //.build();
-
 
     debug!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
-        // Have the closure take ownership of the resources.
-        // event_loop.run never returns, so we must do this to ensure 
-        // the resources are properly cleaned up.
-        // By moving all of those resources to an empty variable, all of them get dropped
-        // and their drop() functions get called.
-
         *control_flow = ControlFlow::Poll;
         if resources.get::<GameState>().unwrap().should_exit {
             *control_flow = ControlFlow::Exit;
         }
         if !resources.get::<GameState>().unwrap().paused {
-            window.set_cursor_grab(true).unwrap();
-            window.set_cursor_visible(false);
+            graphics.window.set_cursor_grab(true).unwrap();
+            graphics.window.set_cursor_visible(false);
         } else {
-            window.set_cursor_grab(false).unwrap();
-            window.set_cursor_visible(true);
+            graphics.window.set_cursor_grab(false).unwrap();
+            graphics.window.set_cursor_visible(true);
         }
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
+            // If the user closed the window, exit
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => *control_flow = ControlFlow::Exit,
+            // Handle window resizing
             Event::WindowEvent { event: WindowEvent::Resized(size), .. } => {
-                // Recreate the swap chain with the new size
-                sc_desc.width = size.width;
-                sc_desc.height = size.height;
-                let mut camera = resources.get_mut::<graphics::Camera>().unwrap();
-                camera.update_aspect(size.width as f32/size.height as f32);
-                let proj_view: [[f32; 4]; 4] = camera.get_vp_matrix().into();
-                swap_chain = device.create_swap_chain(&surface, &sc_desc);
-
-                // Update the mesh pass
-                let mut mesh_pass = resources.get_mut::<graphics::mesh::MeshPass>().unwrap();
-                queue.write_buffer(
-                    &mesh_pass.global_uniform_buf,
-                    0,
-                    // FIXME: cast_slice()?
-                    bytemuck::bytes_of(&proj_view),
-                );
-                mesh_pass.resize(&sc_desc, &mut device).unwrap();
+                graphics.resize(size, &mut world, &mut resources).unwrap();
             },
+            // Handle user input
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::KeyboardInput { input, .. } => input::handle_keyboard_input(input, &mut world, &mut resources),
-                WindowEvent::CursorMoved { position, .. } => input::handle_cursor_moved(position, &window, &mut world, &mut resources),
+                WindowEvent::CursorMoved { position, .. } => input::handle_cursor_moved(position, &graphics.window, &mut world, &mut resources),
                 _ => {},
             },
-            // Emmited when all of the event loop's input events have been processed and redraw processing is about to begin.
+            // Emitted when all of the event loop's input events have been processed and redraw processing is about to begin.
             // Normally, we would use Event::RedrawRequested for rendering, but we can also just render here, because it's a game
             // that has to render continuously either way.
             Event::MainEventsCleared => {
-                // Execute the schedule
+                // Execute all systems
                 schedule.execute(&mut world, &mut resources);
-
-                //window.request_redraw();
-
                 // Render
-                let mut frame = swap_chain
-                    .get_current_frame()
-                    .map_err(|err| 
-                        Error::msg("Failed to acquire next swap chain texture")
-                            .context(err)
-                    )
-                    .unwrap()
-                    .output;
-
-                let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });                    
-
-                let mut mesh_pass = resources.get_mut::<graphics::mesh::MeshPass>().unwrap();
-                mesh_pass.render(&mut encoder, &mut queue, &mut frame, &world, &resources).unwrap();
-
-                queue.submit(Some(encoder.finish()));
+                graphics.render(&mut world, &mut resources).unwrap();
             },
-            Event::RedrawRequested(_) => {
-            },
+            // We already render frames in MainEventsCleared
+            Event::RedrawRequested(_) => {},
             _ => {},
         }
-    });
+    })
 }
 
+// TODO: Create a loading state and add a loding screen
 fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit::window::Window) -> Result<()> {
     // Set up the camera
     let size = window.inner_size();
@@ -233,21 +160,25 @@ fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit
     Ok(())
 }
 
-// TODO: Create a Loading state and add a loding screen
-fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::Device, encoder: &mut wgpu::CommandEncoder) -> Result<()> {
+// TODO: Create a loading state and add a loding screen
+fn setup_scene(world: &mut World, resources: &mut Resources, graphics: &mut Graphics) -> Result<()> {
+    // Create a (temporary) CommandEncoder for loading data to GPU
+    let mut encoder = graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
     {
         let loader = resources.get::<asset_loader::AssetLoader>().unwrap();
         let cube_model_data = loader.load_simple_model("models/test_cube.obj")?;
 
-        let mesh_pass = resources.get::<graphics::mesh::MeshPass>()
+        // This has to be fetched every time we want to upload a model to the GPU.
+        // It's more of a quick hack to get things working and will be rewritten in the future
+        let mesh_bind_group_layout = resources.get::<graphics::mesh::MeshBindGroupLayout>()
             .ok_or(Error::msg("MeshPass not found"))?;
 
         let cube_model = graphics::mesh::Model::from_data(
             cube_model_data,
-            device,
-            encoder,
-            &mesh_pass
+            &mut graphics.device,
+            &mut encoder,
+            &mesh_bind_group_layout
         );
 
         let cube_pos = physics::Position::from(
@@ -266,6 +197,7 @@ fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::
 
         world.push((cube_model, cube_pos, cube_scale));
     }
+    graphics.queue.submit(Some(encoder.finish()));
 
     // Create the player
     let pos = 
@@ -295,17 +227,4 @@ fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::
     resources.insert(atlas);
 
     Ok(())
-}
-
-#[allow(dead_code, unused_imports)]
-use legion::{system, Entity, world::SubWorld, IntoQuery};
-#[system]
-#[read_component(Entity)]
-pub fn test(
-    _world: &mut SubWorld
-) {
-    //let mut query = <&Entity>::query();
-    //for entity in query.iter(world) {
-    //    debug!("entity: {:?}", entity);
-    //}
 }
