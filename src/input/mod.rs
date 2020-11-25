@@ -1,16 +1,32 @@
 use nalgebra as na;
 
 use crate::graphics::Camera;
-use crate::player::{Player, Atlas, PlayerState};
-use crate::physics::Position;
 use crate::time::Time;
 use crate::game_state::GameState;
 use crate::settings::GameSettings;
 
-use legion::{system, World, Resources, EntityStore};
+use legion::{World, Resources};
 
 use winit::event::VirtualKeyCode;
 use winit::event::ElementState;
+
+pub enum Axis {
+    KeyboardAxis(VirtualKeyCode, VirtualKeyCode),
+    // TODO: GamepadAxis
+}
+
+pub enum Action {
+    KeyboardAction(VirtualKeyCode),
+    // TODO: GamepadAction, MouseAction
+}
+
+// TODO: Move to an AxisBindings struct and load it from a config file
+pub const FWD_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::W, VirtualKeyCode::S);
+pub const SIDE_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::D, VirtualKeyCode::A);
+pub const UP_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::Space, VirtualKeyCode::LControl);
+
+// TODO: Move to an ActionBindings struct and load it from a config file
+pub const SPRINT_ACTION: Action = Action::KeyboardAction(VirtualKeyCode::LShift);
 
 // TODO: Key bindings (remove hardcoded Scancodes)
 /// Tracks which keys are pressed
@@ -18,14 +34,51 @@ use winit::event::ElementState;
 pub struct InputState {
     // TODO: Use a na::Vector2::<f64>
     last_cursor_pos: (f64, f64),
-    // TODO: Use a na::Vector3::<f32>
-    // Movement on the z axis (ducked/jumping) -1.0 to 1.0
-    pub upmove: f32,
-    // Movement on the x axis (backward/forward) -1.0 to 1.0
-    pub fwdmove: f32,
-    // Movement on the y axis (left/right) -1.0 to 1.0
-    pub sidemove: f32,
+    curr_cursor_pos: (f64, f64),
+
+    pressed_keys: [u32; 8],
 }
+
+impl InputState {
+    pub fn handle_key_event(&mut self, keycode: &VirtualKeyCode, state: &ElementState) {
+        let offset = *keycode as u32 / 32;
+        match state {
+            ElementState::Pressed => self.pressed_keys[offset as usize] |= 1 << (*keycode as u32 - (offset*32)),
+            ElementState::Released => self.pressed_keys[offset as usize] &= !(1 << (*keycode as u32 - (offset*32))),
+        }
+    }
+
+    pub fn is_key_pressed(&self, keycode: &VirtualKeyCode) -> bool {
+        let offset = *keycode as u32 / 32;
+        match self.pressed_keys[offset as usize] & 1 << (*keycode as u32 - (offset*32)) {
+            0 => false,
+            _ => true,
+        }
+    }
+
+    /// Get the state of an axis
+    /// Returns a value from -1.0 to 1.0
+    pub fn get_axis_state(&self, axis: &Axis) -> f32 {
+        match axis {
+            Axis::KeyboardAxis(pos, neg) => {
+                match (self.is_key_pressed(pos), self.is_key_pressed(neg)) {
+                    (false, false) => 0.0,
+                    (true, true) => 0.0,
+                    (true, false) => 1.0,
+                    (false, true) => -1.0,
+                }
+            }
+        }
+    }
+
+    /// Checks if a given action is pressed
+    pub fn is_action_pressed(&self, action: &Action) -> bool {
+        match action {
+            Action::KeyboardAction(key) => self.is_key_pressed(key),
+        }
+    }
+}
+
 
 pub fn handle_keyboard_input(input: winit::event::KeyboardInput, _world: &mut World, resources: &mut Resources) {
     if let Some(vkeycode) = input.virtual_keycode {
@@ -37,52 +90,18 @@ pub fn handle_keyboard_input(input: winit::event::KeyboardInput, _world: &mut Wo
                 let mut game_state = resources.get_mut::<GameState>().unwrap();
                 game_state.paused = !game_state.paused;
             },
-            _ => (),
+            (keycode, state) => input_state.handle_key_event(&keycode, &state),
         }
-        
-        match vkeycode {
-            // TODO: Action bindings instead of hardcoded keys
-            // TODO: Cleanup
-            VirtualKeyCode::W => match input.state {
-                    ElementState::Pressed => input_state.fwdmove += 1.0,
-                    ElementState::Released => input_state.fwdmove -= 1.0,
-            },
-            VirtualKeyCode::S => match input.state {
-                ElementState::Pressed => input_state.fwdmove -= 1.0,
-                ElementState::Released => input_state.fwdmove += 1.0,
-            },
-            VirtualKeyCode::D => match input.state {
-                    ElementState::Pressed => input_state.sidemove += 1.0,
-                    ElementState::Released => input_state.sidemove -= 1.0,
-            },
-            VirtualKeyCode::A => match input.state {
-                ElementState::Pressed => input_state.sidemove -= 1.0,
-                ElementState::Released => input_state.sidemove += 1.0,
-            },
-            VirtualKeyCode::Space => match input.state {
-                    ElementState::Pressed => input_state.upmove += 1.0,
-                    ElementState::Released => input_state.upmove -= 1.0,
-            },
-            VirtualKeyCode::LControl => match input.state {
-                ElementState::Pressed => input_state.upmove -= 1.0,
-                ElementState::Released => input_state.upmove += 1.0,
-            },
-            _ => (),
-        }
-        input_state.fwdmove = input_state.fwdmove.min(1.0);
-        input_state.fwdmove = input_state.fwdmove.max(-1.0);
-        input_state.sidemove = input_state.sidemove.min(1.0);
-        input_state.sidemove = input_state.sidemove.max(-1.0);
-        input_state.upmove = input_state.upmove.min(1.0);
-        input_state.upmove = input_state.upmove.max(-1.0);
     }
 }
 
-pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, window: &winit::window::Window, world: &mut World, resources: &mut Resources) {
+// TODO: Move camera/delta/settings etc to a System, InputState should be the only thing altered in this function
+pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, window: &winit::window::Window, _world: &mut World, resources: &mut Resources) {
     let time = resources.get::<Time>().unwrap();
     let game_state = resources.get::<GameState>().unwrap();
     //let atlas = resources.get::<Atlas>().unwrap();
     let settings = resources.get::<GameSettings>().unwrap();
+
     if !game_state.paused {
         let delta = time.delta;
         let mut camera = resources.get_mut::<Camera>().unwrap();
@@ -105,90 +124,6 @@ pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, window: &wi
         input_state.last_cursor_pos = (middle.x.into(), middle.y.into());
     }
 }
-/*
-#[system]
-#[write_component(Player)]
-#[write_component(Position)]
-pub fn handle_input(
-    #[resource] event_pump: &mut sdl2::EventPump,
-    #[resource] sdl: &mut sdl2::Sdl,
-    #[resource] game_state: &mut GameState,
-    #[resource] viewport: &mut Viewport,
-    #[resource] camera: &mut Camera,
-    #[resource] gl: &gl::Gl,
-    #[resource] time: &mut Time,
-    #[resource] settings: &mut GameSettings,
-    #[resource] input_state: &mut InputState,
-    #[resource] atlas: &Atlas,
-    world: &mut SubWorld,
-) {
-    for event in event_pump.poll_iter() {
-        match event {
-            sdl2::event::Event::Quit { .. } => game_state.should_exit = true,
-            // Handle window resizing
-            sdl2::event::Event::Window {
-                win_event: sdl2::event::WindowEvent::Resized(w, h),
-                ..
-            } => {
-                viewport.update_size(w, h);
-                camera.update_aspect(viewport.get_aspect());
-                viewport.set_used(&gl);
-            },
-            e => match e {
-                // Handle mouse motion (relative)
-                Event::MouseMotion { xrel, yrel, .. } => {
-                },
-                // TODO: Handle mouse button events
-                //Event::MouseButtonDown { mouse_btn, .. } => self.mouse_input.handle_button_down(mouse_btn),
-                //Event::MouseButtonUp { mouse_btn, .. } => self.mouse_input.handle_button_up(mouse_btn),
-                // Handle keyboard events
-                Event::KeyDown { scancode, .. } => {
-                    match scancode {
-                        _ => (),
-                    }
-                },
-                // KeyUp can be used for simple not-time-critical single-press keybindings
-                Event::KeyUp { scancode, .. } => {
-                    match scancode {
-                        Some(Scancode::Escape) => {
-                            game_state.paused = !game_state.paused;
-                        },
-                        Some(Scancode::P) => {
-                            let mut atlas_player = world.entry_mut(atlas.entity).unwrap();
-                            let mut atlas_player = atlas_player.get_component_mut::<Player>().unwrap();
-                            // Toggle the main player's to spectator and back to normal
-                            match atlas_player.state {
-                                PlayerState::Spectator => atlas_player.state = PlayerState::Normal,
-                                _ => atlas_player.state = PlayerState::Spectator,
-                            }
-                        },
-                        _ => (),
-                    }
-                }
-                _ => (),
-            }
-        }
-    }
-    // TODO: Controller support
-    // Update keycodes
-    let kbd_state = event_pump.keyboard_state();
-    // Set fwdmove
-    input_state.fwdmove = 0.0;
-    if kbd_state.is_scancode_pressed(Scancode::W) { input_state.fwdmove += 1.0 }
-    if kbd_state.is_scancode_pressed(Scancode::S) { input_state.fwdmove -= 1.0 }
-    // Set sidemove
-    input_state.sidemove = 0.0;
-    if kbd_state.is_scancode_pressed(Scancode::D) { input_state.sidemove += 1.0 }
-    if kbd_state.is_scancode_pressed(Scancode::A) { input_state.sidemove -= 1.0 }
-    // Set upmove
-    input_state.upmove = 0.0;
-    if kbd_state.is_scancode_pressed(Scancode::Space) { input_state.upmove += 1.0 }
-    if kbd_state.is_scancode_pressed(Scancode::LCtrl) { input_state.upmove -= 1.0 }
-
-    // Release mouse cursor if the game is paused
-    sdl.mouse().set_relative_mouse_mode(!game_state.paused);
-}
-*/
 
 // TODO: Move to a separate module
 fn handle_mouse_motion (xrel: f64, yrel: f64, position: &mut na::Isometry3<f32>, delta: f32, settings: &GameSettings) {
@@ -219,4 +154,67 @@ fn handle_mouse_motion (xrel: f64, yrel: f64, position: &mut na::Isometry3<f32>,
         zrot
         * position.rotation
         * xrot
+}
+
+mod test {
+    // Rust_analyzer complains about these imports being unused
+    #[allow(unused_imports)]
+    use winit::event::{VirtualKeyCode::*, ElementState::*};
+    #[allow(unused_imports)]
+    use super::{InputState, Axis, Action};
+    #[test]
+    fn test_keypress_simple() {
+        let mut input_state = InputState::default();
+
+        assert!(!input_state.is_key_pressed(&A));
+        input_state.handle_key_event(&A, &Pressed);
+        assert!(input_state.is_key_pressed(&A));
+        input_state.handle_key_event(&A, &Released);
+        assert!(!input_state.is_key_pressed(&A));
+    }
+
+    #[test]
+    fn test_keypress_bounds() {
+        let mut input_state = InputState::default();
+
+        assert!(!input_state.is_key_pressed(&Key1));
+        input_state.handle_key_event(&Key1, &Pressed);
+        assert!(input_state.is_key_pressed(&Key1));
+        input_state.handle_key_event(&Key1, &Released);
+        assert!(!input_state.is_key_pressed(&Key1));
+
+        assert!(!input_state.is_key_pressed(&Key1));
+        input_state.handle_key_event(&Cut, &Pressed);
+        assert!(input_state.is_key_pressed(&Cut));
+        input_state.handle_key_event(&Cut, &Released);
+        assert!(!input_state.is_key_pressed(&Cut));
+    }
+
+    #[test]
+    fn test_keyboard_axis() {
+        let mut input_state = InputState::default();
+        let axis = Axis::KeyboardAxis(NextTrack, PrevTrack);
+
+        assert_eq!(input_state.get_axis_state(&axis), 0.0);
+        input_state.handle_key_event(&NextTrack, &Pressed);
+        assert_eq!(input_state.get_axis_state(&axis), 1.0);
+        input_state.handle_key_event(&PrevTrack, &Pressed);
+        assert_eq!(input_state.get_axis_state(&axis), 0.0);
+        input_state.handle_key_event(&NextTrack, &Released);
+        assert_eq!(input_state.get_axis_state(&axis), -1.0);
+        input_state.handle_key_event(&PrevTrack, &Released);
+        assert_eq!(input_state.get_axis_state(&axis), 0.0);
+    }
+
+    #[test]
+    fn test_keyboard_action() {
+        let mut input_state = InputState::default();
+        let action = Action::KeyboardAction(Power);
+
+        assert!(!input_state.is_action_pressed(&action));
+        input_state.handle_key_event(&Power, &Pressed);
+        assert!(input_state.is_action_pressed(&action));
+        input_state.handle_key_event(&Power, &Released);
+        assert!(!input_state.is_action_pressed(&action));
+    }
 }

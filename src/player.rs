@@ -25,7 +25,7 @@ use legion::{Entity, system, world::SubWorld, IntoQuery, EntityStore};
 use crate::{GameState, GameSettings, time::Time};
 use crate::graphics::Camera;
 use crate::physics::*;
-use crate::input::InputState;
+use crate::input::{self, InputState};
 
 #[system(for_each)]
 #[read_component(Collider)]
@@ -123,7 +123,7 @@ pub fn player_movement(
 
             let mut wishvel = forward * scale + right * scale;
 
-            wishvel.z += scale * input_state.upmove;
+            wishvel.z += scale * input_state.get_axis_state(&input::UP_AXIS);
 
             let wishdir = wishvel.clone();
             let wishspeed = wishdir.norm();
@@ -168,9 +168,9 @@ pub fn player_movement(
             // This is where the bunnyhop bug occurs
             {
                 let wishdir = na::Vector3::new(
-                    input_state.sidemove,
-                    input_state.fwdmove,
-                    input_state.upmove,
+                    input_state.get_axis_state(&input::SIDE_AXIS),
+                    input_state.get_axis_state(&input::FWD_AXIS),
+                    input_state.get_axis_state(&input::UP_AXIS),
                 //).normalize();
                 );
                 //let current_speed = velocity.linear.dot(&wishdir);
@@ -192,6 +192,9 @@ pub fn player_movement(
                 let accelspeed = 3.0;
                 position.rotation = camera.position.rotation;
                 velocity.linear = position.rotation * wishdir * accelspeed;
+                if input_state.is_action_pressed(&input::SPRINT_ACTION) {
+                    velocity.linear *= game_settings.sprint_multiplier;
+                }
 
             } // Accelerate
 
@@ -237,7 +240,7 @@ pub fn player_movement(
 }
 
 fn check_duck(input_state: &InputState, player: &mut Player) {
-    if input_state.upmove < 0.0 {
+    if input_state.get_axis_state(&input::UP_AXIS) < 0.0 {
         // The player is ducking
         player.flags |= PF_DUCKED;
     } else {

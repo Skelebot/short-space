@@ -4,15 +4,6 @@ use nalgebra as na;
 
 // TODO: Write tests
 
-/// A matrix to convert between wgpu and screen coordinate systems
-const CORRECTION_MATRIX: [[f32; 4]; 4] =
-[
-    [1.0, 0.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0, 0.0],
-    [0.0, 0.0, 0.5, 0.0],
-    [0.0, 0.0, 0.5, 1.0],
-];
-
 pub struct Camera {
     pub position: na::Isometry3<f32>, projection: na::Perspective3<f32>,
 }

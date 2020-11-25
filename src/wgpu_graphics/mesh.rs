@@ -22,7 +22,6 @@ pub struct MeshPass {
 impl MeshPass {
     pub fn new(
         device: &mut wgpu::Device,
-        window: &winit::window::Window,
         sc_desc: &wgpu::SwapChainDescriptor,
         _world: &mut World,
         _resources: &mut Resources,

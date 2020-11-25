@@ -59,7 +59,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     setup_resources(&mut world, &mut resources, &window)?;
 
-    let mesh_pass = wgpu_graphics::mesh::MeshPass::new(&mut device, &window, &sc_desc, &mut world, &mut resources)?;
+    let mesh_pass = wgpu_graphics::mesh::MeshPass::new(&mut device, &sc_desc, &mut world, &mut resources)?;
     resources.insert(mesh_pass);
 
     // Create a (temporary) CommandEncoder for loading data to GPU
@@ -151,7 +151,7 @@ async fn run(
                     // FIXME: cast_slice()?
                     bytemuck::bytes_of(&proj_view),
                 );
-                mesh_pass.resize(&sc_desc, &mut device);
+                mesh_pass.resize(&sc_desc, &mut device).unwrap();
             },
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::KeyboardInput { input, .. } => input::handle_keyboard_input(input, &mut world, &mut resources),
@@ -236,27 +236,6 @@ fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit
 // TODO: Create a Loading state and add a loding screen
 fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::Device, encoder: &mut wgpu::CommandEncoder) -> Result<()> {
 
-    //let (plane_model, cube_model) = {
-
-    //    let plane_model_data = graphics::mesh::create_plane(10);
-    //    let cube_model_data = graphics::mesh::create_cube();
-
-    //    let plane = graphics::mesh::Model::from_data(plane_model_data, device, &mesh_pass);
-    //    let cube = graphics::mesh::Model::from_data(cube_model_data, device, &mesh_pass);
-
-    //    (plane, cube)
-    //};
-
-    let plane_pos = physics::Position::from(
-        na::Isometry3::from_parts(
-            na::Translation3::new(0.0, 0.0, 0.0),
-            na::UnitQuaternion::from_axis_angle(
-                &na::Vector3::x_axis(),
-                15_f32.to_radians(),
-            )
-        )
-    );
-
     {
         let loader = resources.get::<asset_loader::AssetLoader>().unwrap();
         let cube_model_data = loader.load_simple_model("models/test_cube.obj")?;
@@ -287,10 +266,6 @@ fn setup_scene(world: &mut World, resources: &mut Resources, device: &mut wgpu::
 
         world.push((cube_model, cube_pos, cube_scale));
     }
-
-    //world.push((plane_model, plane_pos, ()));
-
-    //world.push((cube_model, cube_pos, cube_scale));
 
     // Create the player
     let pos = 

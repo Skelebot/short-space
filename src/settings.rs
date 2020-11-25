@@ -13,10 +13,12 @@
 //
 //pub const MIN_WALK_NORMAL: f32 = 0.4;
 
+// TODO: Load from a config file
 #[derive(Clone)]
 pub struct GameSettings {
     pub noclip_speed: f32,
     pub mouse_sensitivity: f32,
+    pub sprint_multiplier: f32,
     pub vsync: bool,
     pub window_width: i32,
     pub window_height: i32,
@@ -27,6 +29,7 @@ impl Default for GameSettings {
         GameSettings {
             noclip_speed: 30.0,
             mouse_sensitivity: 0.5,
+            sprint_multiplier: 2.0,
             vsync: true,
             window_width: 800,
             window_height: 600,
