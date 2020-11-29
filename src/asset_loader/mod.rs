@@ -1,13 +1,17 @@
 extern crate image;
 
+pub mod data;
+
 use std::path::{Path, PathBuf};
 use anyhow::{Result, Error, anyhow, format_err};
-use crate::wgpu_graphics::mesh::{Vertex, ModelData};
 use wgpu::util::DeviceExt;
 
-use wavefront_obj as wobj;
-use wobj::obj::{Primitive, VTNIndex};
+use crate::graphics::mesh::Vertex;
 
+use wavefront_obj as wobj;
+use wobj::{mtl::{Material, MtlSet}, obj::{Primitive, VTNIndex}};
+
+use self::data::MeshPart;
 pub struct AssetLoader {
     root_path: PathBuf,
 }
@@ -21,116 +25,6 @@ impl AssetLoader {
 
         Ok(AssetLoader {
             root_path: exe_path.join(rel_path),
-        })
-    }
-
-    /// Load data of a single object from a wavefront OBJ file, discarding objects other than the first one
-    /// (if there are multiple objects in that file). Expects the file to contain a material library with
-    /// at least one material. Assumes the first material in the material library is assigned to the first
-    /// model. Expects the first material in the material library to have a texture. Joins all shapes
-    /// in the model into a single model. Discards all other data.
-    pub fn load_simple_model(&self, path: impl AsRef<Path>) -> Result<ModelData> {
-        let obj_file = std::fs::read_to_string(self.root_path.join(&path))
-            .map_err(|err| anyhow!(err)
-                .context(format_err!("Model not found: {:?}", self.root_path.join(&path))))?;
-
-        let obj_path = self.root_path.join(&path);
-        let obj_parent = obj_path.parent().ok_or(
-            format_err!("Could not find parent directory of obj file: {:?}", 
-                self.root_path.join(&path)))?;
-
-        // A set of objects; a single wavefront OBJ file can contain multiple objects
-        let obj_set = wobj::obj::parse(&obj_file.as_str()).map_err(
-            |err| anyhow!(err).context(format_err!(
-                    "Error while parsing object set from file: {:?}",
-                    self.root_path.join(&path)
-                ))
-        )?;
-        // The set of materials for objects; if None, the objects do not have materials
-        let mtl_set = if let Some(mtl_lib_path) = obj_set.material_library {
-            let mtl_file = std::fs::read_to_string(self.root_path.join(obj_parent).join(&mtl_lib_path))?;
-            wobj::mtl::parse(
-                &mtl_file.as_str()
-            ).map_err(|err| anyhow!(err).context(format_err!(
-                "Error while parsing material set from file: {:?}",
-                self.root_path.join(obj_parent).join(mtl_lib_path)
-            )))
-        } else {
-            Err(format_err!(
-                "Expected the model: {:?} to have at least one material",
-                self.root_path.join(&path)
-            ))
-        }?;
-        if obj_set.objects.len() == 0 { return Err(
-            format_err!("No objects found in OBJ file {:?}", 
-                self.root_path.join(&path)
-            ))
-        };
-        if mtl_set.materials.len() == 0 { return Err(
-            format_err!("No materials found in material set in OBJ file {:?}", 
-                self.root_path.join(&path)
-            ))
-        };
-
-        let object = &obj_set.objects[0];
-        debug!("Loading model: {}", object.name);
-
-        let material = &mtl_set.materials[0];
-        debug!("Loading material: {}", material.name);
-
-        let mut indices: Vec<u16> = Vec::new();
-        let mut vertices: Vec<Vertex> = Vec::new();
-
-        let mut add_vertex = |vtni: &VTNIndex| {
-            if let (Some(uvi), Some(ni)) = (vtni.1, vtni.2) {
-                let vertex = Vertex {
-                    pos: match object.vertices[vtni.0] { wobj::obj::Vertex {x, y, z} => [x as f32, y as f32, z as f32]},
-                    uv: match object.tex_vertices[uvi] { wobj::obj::TVertex {u, v, ..} => [u as f32, v as f32]},
-                    normal: match object.normals[ni] { wobj::obj::Normal {x, y, z} => [x as f32, y as f32, z as f32]},
-                };
-                if let Some((i, _)) = vertices.iter().enumerate().find(|(_, v)| v == &&vertex) {
-                    indices.push(i as u16);
-                } else {
-                    // Push a new index
-                    indices.push(vertices.len() as u16);
-                    vertices.push(vertex);
-                }
-            }
-        };
-        for geom in object.geometry.iter() {
-            for shape in geom.shapes.iter() {
-                match shape.primitive {
-                    Primitive::Point(vtni) => add_vertex(&vtni),
-                    Primitive::Line(vtni0, vtni1) => {
-                        add_vertex(&vtni0);
-                        add_vertex(&vtni1);
-                    },
-                    Primitive::Triangle(vtni0, vtni1, vtni2) => {
-                        add_vertex(&vtni0);
-                        add_vertex(&vtni1);
-                        add_vertex(&vtni2);
-                    }
-                }
-            }
-        }
-
-        let texture_path = material.uv_map.as_ref().ok_or(
-            format_err!("Expected the material {:?} to have a texture (uv_map)", material.name))?;
-
-        let img = self.load_texture(obj_parent.join(texture_path))?
-            // (?): fixes incorrect texture coords when loading obj models
-            .flipv();
-
-        // Convert the image to Rgba
-        let texture_img = match img {
-            image::DynamicImage::ImageRgba8(img) => img,
-            img => img.to_rgba()
-        };
-
-        return Ok(ModelData {
-            vertices,
-            indices,
-            texture_img,
         })
     }
 
@@ -191,5 +85,131 @@ impl AssetLoader {
         );
         // Return the texture handle
         texture
+    }
+
+    pub fn load_material_set(&self, path: impl AsRef<Path>) -> Result<MtlSet> {
+        wobj::mtl::parse(
+            &std::fs::read_to_string(
+                self.root_path.join(&path)
+            )?
+        ).map_err(|err| 
+            anyhow!(err)
+                .context(
+                    format_err!(
+                        "Error while parsing material set from file: {:?}",
+                        self.root_path.join(path)
+        )))
+    }
+
+    pub fn load_model(&self, path: impl AsRef<Path>) -> Result<data::ModelData> {
+        let obj_path = self.root_path.join(&path);
+        let obj_parent = obj_path.parent().unwrap();
+        let obj_file = std::fs::read_to_string(&obj_path)
+            .map_err(|err| anyhow!(err)
+                .context(format_err!("Model not found: {:?}", &obj_path)))?;
+
+        // A set of objects; a single wavefront OBJ file can contain multiple objects
+        let object_set = wobj::obj::parse(&obj_file.as_str()).map_err(
+            |err| 
+            anyhow!(err)
+                .context(
+                    format_err!(
+                        "Error while parsing object set from file: {:?}", obj_path
+                ))
+        )?;
+
+        // The set of materials for objects; if None, the objects do not have materials
+        let material_set = if let Some(mtl_lib_path) = object_set.material_library {
+            self.load_material_set(obj_parent.join(mtl_lib_path))
+        } else {
+            Err(format_err!(
+                "Expected the model: {:?} to have at least one material",
+                self.root_path.join(&path)
+            ))
+        }?;
+
+        for object in object_set.objects {
+            debug!("Loading model: {}", object.name);
+            let vertices = object.vertices;
+            let tex_vertices = object.tex_vertices;
+
+            let mesh_parts: Vec<MeshPart> = Vec::with_capacity(object.geometry.len());
+            for geometry in object.geometry {
+                let material: Option<&Material> = match geometry.material_name {
+                    Some(name) => material_set.materials.iter().find(|m| m.name == name),
+                    None => None,
+                };
+
+                let mut indices: Vec<u16> = Vec::new();
+                let mut vertices: Vec<Vertex> = Vec::new();
+
+                for shape in geometry.shapes {
+                    match shape.primitive {
+                        Primitive::Point(_) => {}
+                        Primitive::Line(_, _) => {}
+                        Primitive::Triangle(_, _, _) => {}
+                    }
+                }
+            }
+        }
+
+
+        let material = &mtl_set.materials[0];
+        debug!("Loading material: {}", material.name);
+
+        let mut indices: Vec<u16> = Vec::new();
+        let mut vertices: Vec<Vertex> = Vec::new();
+
+        let mut add_vertex = |vtni: &VTNIndex| {
+            if let (Some(uvi), Some(ni)) = (vtni.1, vtni.2) {
+                let vertex = Vertex {
+                    pos: match object.vertices[vtni.0] { wobj::obj::Vertex {x, y, z} => [x as f32, y as f32, z as f32]},
+                    uv: match object.tex_vertices[uvi] { wobj::obj::TVertex {u, v, ..} => [u as f32, v as f32]},
+                    normal: match object.normals[ni] { wobj::obj::Normal {x, y, z} => [x as f32, y as f32, z as f32]},
+                };
+                if let Some((i, _)) = vertices.iter().enumerate().find(|(_, v)| v == &&vertex) {
+                    indices.push(i as u16);
+                } else {
+                    // Push a new index
+                    indices.push(vertices.len() as u16);
+                    vertices.push(vertex);
+                }
+            }
+        };
+        for geom in object.geometry.iter() {
+            for shape in geom.shapes.iter() {
+                match shape.primitive {
+                    Primitive::Point(vtni) => add_vertex(&vtni),
+                    Primitive::Line(vtni0, vtni1) => {
+                        add_vertex(&vtni0);
+                        add_vertex(&vtni1);
+                    },
+                    Primitive::Triangle(vtni0, vtni1, vtni2) => {
+                        add_vertex(&vtni0);
+                        add_vertex(&vtni1);
+                        add_vertex(&vtni2);
+                    }
+                }
+            }
+        }
+
+        let texture_path = material.uv_map.as_ref().ok_or(
+            format_err!("Expected the material {:?} to have a texture (uv_map)", material.name))?;
+
+        let img = self.load_texture(obj_parent.join(texture_path))?
+            // (?): fixes incorrect texture coords when loading obj models
+            .flipv();
+
+        // Convert the image to Rgba
+        let texture_img = match img {
+            image::DynamicImage::ImageRgba8(img) => img,
+            img => img.to_rgba()
+        };
+
+        return Ok(data::ModelData {
+            vertices,
+            indices,
+            texture_img,
+        })
     }
 }

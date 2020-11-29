@@ -1,15 +1,15 @@
-use bytemuck::{Pod, Zeroable};
-
 use anyhow::{Result, Error};
 
 use wgpu::util::DeviceExt;
-use super::Pass;
+use crate::graphics::Pass;
 
 use crate::graphics::Camera;
 
 use legion::{World, Resources, IntoQuery};
 
-pub struct MeshBindGroupLayout(std::sync::Arc<wgpu::BindGroupLayout>);
+use super::*;
+
+pub struct MeshBindGroupLayout(pub std::sync::Arc<wgpu::BindGroupLayout>);
 pub struct MeshPass {
     pub pipeline: wgpu::RenderPipeline,
     pub mesh_bind_group_layout: std::sync::Arc<wgpu::BindGroupLayout>,
@@ -31,8 +31,8 @@ impl MeshPass {
         // Statically link shaders
         // TODO: Move shaders to assets/ folder
         // TODO: Actually load shaders from files instead of compiling them into the binary
-        let vs_module = device.create_shader_module(wgpu::include_spirv!("shader.vert.spv"));
-        let fs_module = device.create_shader_module(wgpu::include_spirv!("shader.frag.spv"));
+        let vs_module = device.create_shader_module(wgpu::include_spirv!("../shader.vert.spv"));
+        let fs_module = device.create_shader_module(wgpu::include_spirv!("../shader.frag.spv"));
 
         // Set 0
         let global_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -331,117 +331,5 @@ impl Pass for MeshPass {
             );
         }
         Ok(())
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable, PartialEq, Debug)] 
-pub struct Vertex {
-    pub pos: [f32; 3],
-    pub normal: [f32; 3],
-    pub uv: [f32; 2],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct GlobalUniforms {
-    pub(crate)view_proj: [[f32; 4]; 4],
-    pub(crate)camera_pos: [f32; 3],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct ModelUniforms {
-    pub(crate)model: [[f32; 4]; 4],
-}
-
-pub struct ModelData {
-    pub vertices: Vec<Vertex>,
-    pub indices: Vec<u16>,
-    pub texture_img: image::RgbaImage,
-}
-
-use crate::asset_loader::AssetLoader;
-pub struct Model {
-    // TODO: Rc<> for multiple models with the same data (it's all read-only either way)
-    pub vertex_buf: wgpu::Buffer,
-    pub index_buf: wgpu::Buffer,
-    pub bind_group: wgpu::BindGroup,
-    pub uniform_buf: wgpu::Buffer,
-    pub index_count: usize,
-    pub uniform_offset: wgpu::DynamicOffset,
-}
-
-impl Model {
-    pub fn from_data(data: ModelData, device: &mut wgpu::Device, encoder: &mut wgpu::CommandEncoder, bind_group_layout: &MeshBindGroupLayout) -> Model {
-
-        let vertex_data = data.vertices;
-        let index_data = data.indices;
-
-        let vertex_buf = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&vertex_data),
-                usage: wgpu::BufferUsage::VERTEX,
-            }
-        );
-        let index_buf = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&index_data),
-                usage: wgpu::BufferUsage::INDEX,
-            }
-        );
-
-        let model_uniform = ModelUniforms {
-            model: na::Matrix4::identity().into(),
-        };
-        let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::bytes_of(&model_uniform),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-        });
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: None,
-            compare: None,
-            // TODO: Set filters to FilterMode::Linear for smoother textures
-            ..Default::default()
-        });
-
-        let texture = AssetLoader::upload_texture(device, encoder, true, data.texture_img);
-        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: None,
-            // TODO: Review and customize
-            ..Default::default()
-        });
-
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &bind_group_layout.0,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(uniform_buf.slice(..)),   
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),   
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::TextureView(&texture_view),
-                },
-            ]
-        });
-
-        Model {
-            bind_group: bind_group,
-            uniform_buf: uniform_buf,
-            vertex_buf: vertex_buf,
-            index_buf: index_buf,
-            index_count: index_data.len(),
-            uniform_offset: 0,
-        }
     }
 }

@@ -7,10 +7,10 @@ extern crate ncollide3d as nc;
 #[macro_use]
 extern crate log;
 
-//mod graphics;
-pub mod wgpu_graphics;
-pub use wgpu_graphics as graphics;
+pub mod graphics;
 use graphics::Graphics;
+
+use graphics::mesh::MeshPass;
 
 mod asset_loader;
 mod input;
@@ -44,9 +44,9 @@ fn main() -> Result<(), anyhow::Error> {
     // Create the resource storage
     let mut resources = Resources::default();
 
-    let (mut graphics, event_loop) = block_on(wgpu_graphics::setup(&mut world, &mut resources))?;
+    let (mut graphics, event_loop) = block_on(graphics::setup(&mut world, &mut resources))?;
 
-    let mesh_pass = wgpu_graphics::mesh::MeshPass::new(
+    let mesh_pass = MeshPass::new(
         &mut graphics.device,
         &graphics.sc_desc,
         &mut world,
@@ -167,11 +167,11 @@ fn setup_scene(world: &mut World, resources: &mut Resources, graphics: &mut Grap
 
     {
         let loader = resources.get::<asset_loader::AssetLoader>().unwrap();
-        let cube_model_data = loader.load_simple_model("models/test_cube.obj")?;
+        let cube_model_data = loader.load_model("models/testmap.obj")?;
 
         // This has to be fetched every time we want to upload a model to the GPU.
         // It's more of a quick hack to get things working and will be rewritten in the future
-        let mesh_bind_group_layout = resources.get::<graphics::mesh::MeshBindGroupLayout>()
+        let mesh_bind_group_layout = resources.get::<graphics::mesh::mesh_pass::MeshBindGroupLayout>()
             .ok_or(Error::msg("MeshPass not found"))?;
 
         let cube_model = graphics::mesh::Model::from_data(
