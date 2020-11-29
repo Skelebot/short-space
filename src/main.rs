@@ -1,6 +1,8 @@
 //#[macro_use]
 //extern crate render_gl_derive;
 
+#![feature(or_patterns)]
+
 extern crate nalgebra as na;
 extern crate ncollide3d as nc;
 

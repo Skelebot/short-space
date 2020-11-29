@@ -3,6 +3,8 @@ use anyhow::{Result, Error};
 use legion::{World, Resources};
 use winit::dpi::PhysicalSize;
 
+use wgpu::util::DeviceExt;
+
 mod setup;
 pub use setup::setup;
 
@@ -58,5 +60,57 @@ impl Graphics {
 
         self.queue.submit(Some(encoder.finish()));
         Ok(())
+    }
+    
+    pub fn upload_texture(
+        device: &mut wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        srgb: bool,
+        img: image::RgbaImage,
+    ) -> wgpu::Texture {
+        // The physical size of the texture
+        let (img_width, img_height) = (img.width(), img.height());
+        let texture_extent = wgpu::Extent3d {
+            width: img_width,
+            height: img_height,
+            depth: 1,
+        };
+        // The texture binding to copy data to and use as a handle to it
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: texture_extent,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: if srgb { wgpu::TextureFormat::Rgba8UnormSrgb } else { wgpu::TextureFormat::Rgba8Unorm },
+            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+        });
+        // Temporary buffer to copy data from into the texture
+        let tmp_buf = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&img.into_raw()),
+                usage: wgpu::BufferUsage::COPY_SRC,
+            }
+        );
+        // Copy img's pixels from the temporary buffer into the texture buffer
+        encoder.copy_buffer_to_texture(
+            wgpu::BufferCopyView {
+                buffer: &tmp_buf,
+                layout: wgpu::TextureDataLayout {
+                    offset: 0,
+                    bytes_per_row: 4 * img_width,
+                    rows_per_image: img_height,
+                },
+            }, 
+            wgpu::TextureCopyView {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
+            }, 
+            texture_extent
+        );
+        // Return the texture handle
+        texture
     }
 }

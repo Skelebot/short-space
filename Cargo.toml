@@ -29,9 +29,6 @@ log = "*"
 # Data loading
 bytemuck = { version = "1.4.1", features = ["derive"] }
 
-# OBJ model loading
-wavefront_obj = "8.0.0"
-
 # Misc
 #flatbuffers = "0.6.0"
 floating-duration = "0.1.2"
@@ -40,7 +37,9 @@ floating-duration = "0.1.2"
 version = "0.3.1"
 features = ["extended-tuple-impls"]
 
+[dependencies.wavefront_obj]
+git = "https://github.com/Skelebot/wavefront_obj"
+
 [build-dependencies]
 # Used for copying the assets dir to the target dir for testing
 walkdir = "2.1"
-

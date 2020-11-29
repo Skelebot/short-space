@@ -4,7 +4,6 @@ pub mod data;
 
 use std::path::{Path, PathBuf};
 use anyhow::{Result, Error, anyhow, format_err};
-use wgpu::util::DeviceExt;
 
 use crate::graphics::mesh::Vertex;
 
@@ -33,58 +32,6 @@ impl AssetLoader {
             .map_err(|err| 
                 anyhow!(err).context(format_err!("Failed to open image: {:?}", path.as_ref())))?;
         Ok(img)
-    }
-
-    pub fn upload_texture(
-        device: &mut wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        srgb: bool,
-        img: image::RgbaImage,
-    ) -> wgpu::Texture {
-        // The physical size of the texture
-        let (img_width, img_height) = (img.width(), img.height());
-        let texture_extent = wgpu::Extent3d {
-            width: img_width,
-            height: img_height,
-            depth: 1,
-        };
-        // The texture binding to copy data to and use as a handle to it
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            size: texture_extent,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: if srgb { wgpu::TextureFormat::Rgba8UnormSrgb } else { wgpu::TextureFormat::Rgba8Unorm },
-            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
-        });
-        // Temporary buffer to copy data from into the texture
-        let tmp_buf = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&img.into_raw()),
-                usage: wgpu::BufferUsage::COPY_SRC,
-            }
-        );
-        // Copy img's pixels from the temporary buffer into the texture buffer
-        encoder.copy_buffer_to_texture(
-            wgpu::BufferCopyView {
-                buffer: &tmp_buf,
-                layout: wgpu::TextureDataLayout {
-                    offset: 0,
-                    bytes_per_row: 4 * img_width,
-                    rows_per_image: img_height,
-                },
-            }, 
-            wgpu::TextureCopyView {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
-            }, 
-            texture_extent
-        );
-        // Return the texture handle
-        texture
     }
 
     pub fn load_material_set(&self, path: impl AsRef<Path>) -> Result<MtlSet> {
@@ -128,28 +75,53 @@ impl AssetLoader {
             ))
         }?;
 
+
         for object in object_set.objects {
             debug!("Loading model: {}", object.name);
             let vertices = object.vertices;
+            let normals = object.normals;
             let tex_vertices = object.tex_vertices;
 
             let mesh_parts: Vec<MeshPart> = Vec::with_capacity(object.geometry.len());
+            // For every geometry in an object
+            // TODO: Group geometries by material
             for geometry in object.geometry {
+                // Create new mesh part
                 let material: Option<&Material> = match geometry.material_name {
                     Some(name) => material_set.materials.iter().find(|m| m.name == name),
                     None => None,
                 };
+
+                match material {
+                    // Untextured
+                    Some(&Material {ambient_map: None, diffuse_map: None, .. }) => {
+                        todo!();
+                        //load_untextured()
+                    },
+                    Some(&Material {ambient_map: Some(t), .. } | &Material {diffuse_map: Some(t), ..}) => {
+                        todo!();
+                        //load_untextured()
+                    },
+                    None => {}
+                }
 
                 let mut indices: Vec<u16> = Vec::new();
                 let mut vertices: Vec<Vertex> = Vec::new();
 
                 for shape in geometry.shapes {
                     match shape.primitive {
-                        Primitive::Point(_) => {}
+                        Primitive::Point((id, t_id, n_id)) => {
+
+                        }
                         Primitive::Line(_, _) => {}
                         Primitive::Triangle(_, _, _) => {}
                     }
                 }
+                mesh_parts.push(
+                    MeshPart {
+                        vertices,
+                    }
+                )
             }
         }
 

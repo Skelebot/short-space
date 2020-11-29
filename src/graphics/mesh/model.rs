@@ -1,7 +1,7 @@
 use super::ModelUniforms;
 use super::mesh_pass::MeshBindGroupLayout;
 
-use crate::asset_loader::{AssetLoader, data::ModelData};
+use crate::{graphics::Graphics, asset_loader::data::ModelData};
 use wgpu::util::DeviceExt;
 
 pub struct Model {
@@ -51,7 +51,7 @@ impl Model {
             ..Default::default()
         });
 
-        let texture = AssetLoader::upload_texture(device, encoder, true, data.texture_img);
+        let texture = Graphics::upload_texture(device, encoder, true, data.texture_img);
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
             label: None,
             // TODO: Review and customize
