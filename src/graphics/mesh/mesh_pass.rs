@@ -1,22 +1,33 @@
 use anyhow::{Result, Error};
 
 use wgpu::util::DeviceExt;
-use crate::graphics::Pass;
+use crate::{asset_loader::AssetLoader, graphics::Pass};
 
 use crate::graphics::Camera;
 
 use legion::{World, Resources, IntoQuery};
 
-use super::*;
+use super::{GlobalUniforms, MaterialShading, RenderMesh, mesh_pipeline::MeshPipeline, mesh_pipeline::PipelineType};
 
-pub struct MeshBindGroupLayout(pub std::sync::Arc<wgpu::BindGroupLayout>);
+pub struct MeshPassPipelines {
+    pub untextured: MeshPipeline,
+    pub textured: MeshPipeline,
+    pub textured_unlit: MeshPipeline,
+    pub textured_emissive: MeshPipeline,
+    pub untextured_emissive: MeshPipeline,
+}
+
 pub struct MeshPass {
-    pub pipeline: wgpu::RenderPipeline,
-    pub mesh_bind_group_layout: std::sync::Arc<wgpu::BindGroupLayout>,
     pub global_bind_group_layout: wgpu::BindGroupLayout,
+    pub mesh_bind_group_layout: wgpu::BindGroupLayout,
     pub global_bind_group: wgpu::BindGroup,
+
+    pub pipelines: MeshPassPipelines,
+
     pub global_uniform_buf: wgpu::Buffer,
+
     depth_texture: wgpu::Texture,
+    // For clearing
     depth_texture_view: wgpu::TextureView,
 }
 
@@ -27,12 +38,6 @@ impl MeshPass {
         _world: &mut World,
         resources: &mut Resources,
     ) -> Result<MeshPass> {
-
-        // Statically link shaders
-        // TODO: Move shaders to assets/ folder
-        // TODO: Actually load shaders from files instead of compiling them into the binary
-        let vs_module = device.create_shader_module(wgpu::include_spirv!("../shader.vert.spv"));
-        let fs_module = device.create_shader_module(wgpu::include_spirv!("../shader.frag.spv"));
 
         // Set 0
         let global_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -56,31 +61,13 @@ impl MeshPass {
         let mesh_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
-                // Model matrix (na::Matrix4 / mat4)
+                // Mesh matrix (na::Matrix4 / mat4)
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStage::VERTEX,
                     ty: wgpu::BindingType::UniformBuffer {
                         dynamic: false,
                         min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // Texture sampler (sampler2D)
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler { comparison: false },
-                    count: None,
-                },
-                // Sampled texture (texture2D)
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::SampledTexture {
-                        multisampled: false,
-                        component_type: wgpu::TextureComponentType::Float,
-                        dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
                 },
@@ -110,17 +97,6 @@ impl MeshPass {
             ],
         });
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("main pipeline layout"),
-            bind_group_layouts: &[
-                // Set 0
-                &global_bind_group_layout,
-                // Set 1
-                &mesh_bind_group_layout,
-            ],
-            push_constant_ranges: &[]
-        });
-
         // Depth testing
         let depth_texture = device.create_texture(
             &wgpu::TextureDescriptor {
@@ -140,82 +116,25 @@ impl MeshPass {
 
         let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("main pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
-                module: &vs_module,
-                entry_point: "main",
-            },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-                module: &fs_module,
-                entry_point: "main",
-            }),
-            //rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-            //    front_face: wgpu::FrontFace::Ccw,
-            //    //cull_mode: wgpu::CullMode::Back,
-            //    cull_mode: wgpu::CullMode::None,
-            //    depth_bias: 0,
-            //    depth_bias_slope_scale: 0.0,
-            //    depth_bias_clamp: 0.0,
-            //    clamp_depth: false,
-            //}),
-            rasterization_state: None,
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-            color_states: &[sc_desc.format.into()],
-            //    // ?: Why is this repeated?
-            //    wgpu::ColorStateDescriptor {
-            //        format: swap_chain_desc.format,
-            //        color_blend: wgpu::BlendDescriptor::REPLACE,
-            //        alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            //        write_mask: wgpu::ColorWrite::ALL,
-            //    },
-            //    wgpu::ColorStateDescriptor {
-            //        format: swap_chain_desc.format,
-            //        color_blend: wgpu::BlendDescriptor::REPLACE,
-            //        alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            //        write_mask: wgpu::ColorWrite::ALL,
-            //    },
-            //],
-            depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilStateDescriptor::default(),
-            }),
-            vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                    stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::InputStepMode::Vertex,
-                    attributes: 
-                        &wgpu::vertex_attr_array![
-                            // Position
-                            0 => Float3,
-                            // Normal
-                            1 => Float3,
-                            // UV
-                            2 => Float2,
-                        ],
-                }],
-            },
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
-        });
-
-        // TODO: This is a quick hack to get loading models working;
-        // It *will* get more complicated later, and will have to be replaced
-        let mbgl_arc = std::sync::Arc::new(mesh_bind_group_layout);
-
-        resources.insert(MeshBindGroupLayout(mbgl_arc.clone()));
+        // For loading shaders
+        let asset_loader = resources.get::<AssetLoader>().expect("Asset loader not found, cannot load shaders");
+        let pipelines = MeshPassPipelines {
+            untextured: MeshPipeline::pipeline_type(PipelineType::Untextured, device, sc_desc, &global_bind_group_layout, &mesh_bind_group_layout, &asset_loader),
+            textured: MeshPipeline::pipeline_type(PipelineType::Textured, device, sc_desc, &global_bind_group_layout, &mesh_bind_group_layout, &asset_loader),
+            textured_unlit: MeshPipeline::pipeline_type(PipelineType::TexturedUnlit, device, sc_desc, &global_bind_group_layout, &mesh_bind_group_layout, &asset_loader),
+            textured_emissive: MeshPipeline::pipeline_type(PipelineType::TexturedEmissive, device, sc_desc, &global_bind_group_layout, &mesh_bind_group_layout, &asset_loader),
+            untextured_emissive: MeshPipeline::pipeline_type(PipelineType::UntexturedEmissive, device, sc_desc, &global_bind_group_layout, &mesh_bind_group_layout, &asset_loader),
+        };
 
         let mesh_pass = MeshPass {
-            pipeline: pipeline,
-            mesh_bind_group_layout: mbgl_arc.clone(),
-            global_bind_group_layout,
             global_bind_group: global_bind_group,
+            global_bind_group_layout,
             global_uniform_buf: global_uniform_buf,
+
+            pipelines,
+
+            mesh_bind_group_layout,
+
             depth_texture: depth_texture,
             depth_texture_view: depth_texture_view,
         };
@@ -229,7 +148,7 @@ impl Pass for MeshPass {
         &mut self,
         device: &mut wgpu::Device,
         queue: &mut wgpu::Queue,
-        sc_desc: &wgpu::SwapChainDescriptor,
+        sc_desc: &mut wgpu::SwapChainDescriptor,
         _world: &legion::World,
         resources: &legion::Resources,
     ) -> Result<()> {
@@ -251,7 +170,7 @@ impl Pass for MeshPass {
 
         // Update the camera
         let mut camera = resources.get_mut::<Camera>().unwrap();
-        camera.update_aspect(sc_desc.width as f32/sc_desc.height as f32);
+        camera.update_aspect(sc_desc.width as f32 / sc_desc.height as f32);
         let proj_view: [[f32; 4]; 4] = camera.get_vp_matrix().into();
         queue.write_buffer(
             &self.global_uniform_buf,
@@ -263,73 +182,97 @@ impl Pass for MeshPass {
     }
     fn render(
         &mut self,
-        encoder: &mut wgpu::CommandEncoder,
+        _device: &mut wgpu::Device,
         queue: &mut wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
         // Usually the frame
         target: &mut wgpu::SwapChainTexture,
         world: &legion::World,
         resources: &legion::Resources,
     ) -> Result<()> {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                attachment: &target.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    // Clear the framebuffer with a color
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                attachment: &self.depth_texture_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
-                }),
-                stencil_ops: None,
-            }),
-        });
-        let camera = resources.get::<Camera>().ok_or(Error::msg("Couldn't find the Camera"))?;
 
         // Upload global uniforms
+        let camera = resources.get::<Camera>().ok_or(Error::msg("Couldn't find the Camera"))?;
         let view_proj = camera.get_vp_matrix();
         let global_uniforms = GlobalUniforms {
             view_proj: view_proj.into(),
-            camera_pos: na::Vector3::new(0.0, 0.0, 0.0).into(),
+            camera_pos: camera.position.translation.vector.into(),
         };
         queue.write_buffer(
             &self.global_uniform_buf,
             0,
             bytemuck::bytes_of(&global_uniforms)
         );
-        // Draw with our pipeline
-        // Per pass
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.global_bind_group, &[]);
-        // Per entity
+
+        // Select every entity with a RenderMesh, position and maybe a scale
+        let mut query = <(&RenderMesh, &Position, Option<&Scale>)>::query();
+
+        // Upload mesh model transform matrices to every model's buffer
         use crate::physics::*;
-        let mut query = <(&Model, &Position, Option<&Scale>)>::query();
-        for (model, position, maybe_scale) in query.iter(world) {
+        for (rmesh, position, maybe_scale) in query.iter(world) {
             let mut transform = position.to_homogeneous();
             if let Some(scale) = maybe_scale {
                 transform = transform.prepend_nonuniform_scaling(scale);
             }
             let transform: [[f32; 4]; 4] = transform.into();
             queue.write_buffer(
-                &model.uniform_buf,
+                &rmesh.uniform_buf,
                 0,
                 bytemuck::bytes_of(&transform)
             );
-            render_pass.set_bind_group(1, &model.bind_group, &[]);
-            // pass.set_bind_group(1, entity_bind_group, &[entity.uniform_offset])
-            render_pass.set_index_buffer(model.index_buf.slice(..));
-            render_pass.set_vertex_buffer(0, model.vertex_buf.slice(..));
-            render_pass.draw_indexed(
-                0 .. model.index_count as u32,
-                0,
-                0..1,
-            );
         }
+
+        // Begin the render pass
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                // Clear the frame
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &target.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        // Clear the framebuffer with a color
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.01, g: 0.01, b: 0.01, a: 1.0,
+                        }),
+                        store: true,
+                    },
+                }],
+                // Clear the depth buffer
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
+                    attachment: &self.depth_texture_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
+            });
+
+            // Select every RenderMesh in the world
+            let mut query = <&RenderMesh>::query();
+            render_pass.set_bind_group(0, &self.global_bind_group, &[]);
+            for mesh in query.iter(world) {
+                render_pass.set_bind_group(1, &mesh.bind_group, &[]);
+                for part in &mesh.parts {
+                    // Set the correct pipeline before rendering
+                    render_pass.set_pipeline(
+                        match part.material.shading {
+                            MaterialShading::Untextured => &self.pipelines.untextured.pipeline,
+                            MaterialShading::Textured => &self.pipelines.textured.pipeline,
+                            MaterialShading::TexturedUnlit => &self.pipelines.textured_unlit.pipeline,
+                            MaterialShading::TexturedEmissive => &self.pipelines.textured_emissive.pipeline,
+                            MaterialShading::UntexturedEmissive => &self.pipelines.untextured_emissive.pipeline,
+                        }
+                    );
+
+                    render_pass.set_bind_group(2, &part.material.bind_group, &[]);
+                    render_pass.set_index_buffer(part.index_buf.slice(..));
+                    render_pass.set_vertex_buffer(0, part.vertex_buf.slice(..));
+                    render_pass.draw_indexed(0 .. part.index_count as u32, 0, 0..1);
+                }
+            }
+        }
+
         Ok(())
     }
 }

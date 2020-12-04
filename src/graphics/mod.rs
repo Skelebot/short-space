@@ -1,6 +1,7 @@
 
 use anyhow::{Result, Error};
 use legion::{World, Resources};
+use mesh::MeshPass;
 use winit::dpi::PhysicalSize;
 
 use wgpu::util::DeviceExt;
@@ -21,7 +22,8 @@ pub struct Graphics {
     pub surface: wgpu::Surface,
     pub queue: wgpu::Queue,
     pub window: winit::window::Window,
-    pub render_passes: Vec<Box<dyn Pass>>,
+    //pub render_passes: Vec<Box<dyn Pass>>,
+    pub mesh_pass: MeshPass,
 }
 
 impl Graphics {
@@ -30,15 +32,18 @@ impl Graphics {
         self.sc_desc.width = size.width;
         self.sc_desc.height = size.height;
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-        for pass in self.render_passes.iter_mut() {
-            pass.resize(
-                &mut self.device,
-                &mut self.queue,
-                &self.sc_desc,
-                &world,
-                &resources,
-            )?;
-        }
+
+        // Let all the render passes resize their internal buffers
+        self.mesh_pass.resize(
+            &mut self.device,
+            &mut self.queue,
+            &mut self.sc_desc,
+            &world,
+            &resources
+        )?;
+        //for pass in self.render_passes.iter_mut() {
+        //    pass.resize(&mut self, &world, &resources)?;
+        //}
 
         Ok(())
     }
@@ -54,9 +59,18 @@ impl Graphics {
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });                    
 
-        for pass in self.render_passes.iter_mut() {
-            pass.render(&mut encoder, &mut self.queue, &mut frame, &world, &resources)?;
-        }
+        // Render onto the frame with render passes
+        self.mesh_pass.render(
+            &mut self.device,
+            &mut self.queue,
+            &mut encoder,
+            &mut frame,
+            &world,
+            &resources
+        )?;
+        //for pass in self.render_passes.iter_mut() {
+        //    pass.render(&mut encoder, &mut self.queue, &mut frame, &world, &resources)?;
+        //}
 
         self.queue.submit(Some(encoder.finish()));
         Ok(())

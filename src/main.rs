@@ -12,8 +12,6 @@ extern crate log;
 pub mod graphics;
 use graphics::Graphics;
 
-use graphics::mesh::MeshPass;
-
 mod asset_loader;
 mod input;
 mod settings;
@@ -26,7 +24,7 @@ mod player;
 mod tests;
 
 use settings::GameSettings;
-use anyhow::{Result, Error};
+use anyhow::Result;
 use legion::{World, Resources, Schedule};
 
 use game_state::GameState;
@@ -46,15 +44,11 @@ fn main() -> Result<(), anyhow::Error> {
     // Create the resource storage
     let mut resources = Resources::default();
 
-    let (mut graphics, event_loop) = block_on(graphics::setup(&mut world, &mut resources))?;
+    // AssetLoader is already needed to load shaders
+    let asset_loader = asset_loader::AssetLoader::from_relative_exe_path(std::path::Path::new("assets"))?;
+    resources.insert(asset_loader);
 
-    let mesh_pass = MeshPass::new(
-        &mut graphics.device,
-        &graphics.sc_desc,
-        &mut world,
-        &mut resources
-    )?;
-    graphics.render_passes.push(Box::new(mesh_pass));
+    let (mut graphics, event_loop) = block_on(graphics::setup(&mut world, &mut resources))?;
 
     setup_resources(&mut world, &mut resources, &graphics.window)?;
     setup_scene(&mut world, &mut resources, &mut graphics)?;
@@ -149,13 +143,10 @@ fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit
     // Create the frame-delta tracking Resource
     let time = time::Time::new();
 
-    let asset_loader = asset_loader::AssetLoader::from_relative_exe_path(std::path::Path::new("assets"))?;
-
     // Insert the resources
     resources.insert(settings);
     resources.insert(input_state);
     resources.insert(phys_settings);
-    resources.insert(asset_loader);
     resources.insert(game_state);
     resources.insert(time);
 
@@ -167,37 +158,26 @@ fn setup_scene(world: &mut World, resources: &mut Resources, graphics: &mut Grap
     // Create a (temporary) CommandEncoder for loading data to GPU
     let mut encoder = graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
+    // Load models from an obj file and add them into the world
     {
         let loader = resources.get::<asset_loader::AssetLoader>().unwrap();
-        let cube_model_data = loader.load_model("models/testmap.obj")?;
 
-        // This has to be fetched every time we want to upload a model to the GPU.
-        // It's more of a quick hack to get things working and will be rewritten in the future
-        let mesh_bind_group_layout = resources.get::<graphics::mesh::mesh_pass::MeshBindGroupLayout>()
-            .ok_or(Error::msg("MeshPass not found"))?;
-
-        let cube_model = graphics::mesh::Model::from_data(
-            cube_model_data,
-            &mut graphics.device,
-            &mut encoder,
-            &mesh_bind_group_layout
-        );
-
-        let cube_pos = physics::Position::from(
-            na::Isometry3::from_parts(
-                na::Translation3::new(0.0, 10.0, 0.0),
-                na::UnitQuaternion::from_axis_angle(
-                    &na::Vector3::z_axis(),
-                    0_f32.to_radians(),
-                )
+        loader.load_obj_set("models/map.obj")?
+        .into_iter()
+            .map(
+                |mesh_data | {
+                    graphics::mesh::RenderMesh::from_parts(
+                        mesh_data.parts,
+                        &mut graphics.mesh_pass,
+                        &mut graphics.device,
+                        &mut encoder,
+                    )
+                }
             )
-        );
-
-        let cube_scale = physics::Scale::from(
-            na::Vector3::new(2.0, 2.0, 2.0)
-        );
-
-        world.push((cube_model, cube_pos, cube_scale));
+            .for_each(|render_mesh| {
+                let pos = physics::Position::identity();
+                world.push((pos, render_mesh));
+            });
     }
     graphics.queue.submit(Some(encoder.finish()));
 

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 pub struct Atlas { pub entity: Entity }
 #[derive(PartialEq, Eq, Debug)]
 pub enum PlayerState {
@@ -5,7 +6,6 @@ pub enum PlayerState {
     Noclip,     // noclip movement
     Spectator,  // still run into walls
     Dead,       // no acceleration or turning, but still free falling
-    Freeze,     // stuck in place
 }
 #[derive(PartialEq, Eq, Debug)]
 pub enum MovementState {
@@ -21,7 +21,7 @@ pub struct Player {
     pub flags: u16,
 }
 
-use legion::{Entity, system, world::SubWorld, IntoQuery, EntityStore};
+use legion::{Entity, system, world::SubWorld, IntoQuery};
 use crate::{GameState, GameSettings, time::Time};
 use crate::graphics::Camera;
 use crate::physics::*;
@@ -63,7 +63,7 @@ pub fn player_movement(
 
         const JUMP_VELOCITY: f32 = 0.05;
 
-        let moving_up = velocity.linear.z > 0.0;
+        let _moving_up = velocity.linear.z > 0.0;
         let moving_up_rapidly = velocity.linear.z > JUMP_VELOCITY;
         // Was standing on ground, but now am not
         if moving_up_rapidly {
@@ -76,7 +76,7 @@ pub fn player_movement(
             let mut query = <(&Entity, &Collider)>::query();
             for (entity, collider) in query.iter(world) {
                 use nc::query::RayCast;
-                let intersection = collider.toi_and_normal_with_ray(
+                let intersection = collider.handle.toi_and_normal_with_ray(
                     &na::Isometry3::identity(),
                     &ray,
                     GROUND_TEST_OFFSET,
@@ -117,8 +117,8 @@ pub fn player_movement(
             //check_duck(input_state, player);
             //apply_friction(&player, velocity, time);
             //  wishvel
-            let forward = **position * na::Vector3::x();
-            let right = **position * na::Vector3::y();
+            let forward = *position * na::Vector3::x();
+            let right = *position * na::Vector3::y();
             let scale = 1.0;
 
             let mut wishvel = forward * scale + right * scale;
@@ -136,7 +136,7 @@ pub fn player_movement(
                 velocity.linear += wishdir * accelspeed;
             }
             position.translation.vector += velocity.linear;
-            camera.position = **position;
+            camera.position = *position;
             // PM_StepSlideMove();
 
             // PM_DropTimers();
@@ -204,9 +204,8 @@ pub fn player_movement(
             position.translation.vector += velocity.linear * time.delta;
 
             // Sync camera pos to player pos
-            camera.position = **position;
+            camera.position = *position;
 
-            debug!("pos: {}", **position);
             // PM_NoclipMove();
             // PM_DropTimers();
             // Move only the camera
@@ -223,7 +222,6 @@ pub fn player_movement(
             //camera.position.translation.vector += direction * speed;
         },
         // No movement at all
-        PlayerState::Freeze => {},
         PlayerState::Normal => {
             // PM_CheckDuck();
             // PM_GroundTrace();

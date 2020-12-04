@@ -1,63 +1,20 @@
 mod velocity;
 pub use velocity::Velocity;
-use std::ops::{Deref, DerefMut};
 
 pub struct Collider {
-    inner: nc::shape::ShapeHandle<f32>
-}
-impl Deref for Collider {
-    type Target = dyn nc::shape::Shape<f32>;
-    fn deref(&self) -> &Self::Target {
-        self.inner.deref()
-    }
+    pub handle: nc::shape::ShapeHandle<f32>
 }
 
 impl From<nc::shape::ShapeHandle<f32>> for Collider {
     fn from(shape: nc::shape::ShapeHandle<f32>) -> Self {
-        Self { inner: shape }
+        Self { handle: shape }
     }
 }
 
-pub struct Scale {
-    inner: na::Vector3<f32>
-}
-
-impl From<na::Vector3<f32>> for Scale {
-    fn from(vec: na::Vector3<f32>) -> Self {
-        Self { inner: vec }
-    }
-}
-
-impl Deref for Scale {
-    type Target = na::Vector3<f32>;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
+pub type Scale = na::Vector3<f32>;
 
 /// A wrapper for nalgebra's Isometry to be used as a component for physical entities
-pub struct Position {
-    inner: na::Isometry3<f32>,
-}
-
-impl From<na::Isometry3<f32>> for Position {
-    fn from(iso: na::Isometry3<f32>) -> Self {
-        Self { inner: iso }
-    }
-}
-
-impl Deref for Position {
-    type Target = na::Isometry3<f32>;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl DerefMut for Position {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
+pub type Position = na::Isometry3<f32>;
 
 pub struct PhysicsSettings {
     pub gravity: na::Vector3<f32>,

@@ -2,9 +2,9 @@ use winit::{event_loop::EventLoop, window::Window};
 use anyhow::Result;
 use legion::{World, Resources};
 
-use super::Graphics;
+use super::{Graphics, mesh::MeshPass};
 
-pub async fn setup(_world: &mut World, _resources: &mut Resources) -> Result<(Graphics, EventLoop<()>)> {
+pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(Graphics, EventLoop<()>)> {
     let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let event_loop = EventLoop::new();
     let window = Window::new(&event_loop)?;
@@ -41,7 +41,7 @@ pub async fn setup(_world: &mut World, _resources: &mut Resources) -> Result<(Gr
     let trace_dir = std::env::var("WGPU_TRACE");
 
     // Create the logical device and command queue
-    let (device, queue) = adapter
+    let (mut device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
                 features: wgpu::Features::empty(),
@@ -63,14 +63,26 @@ pub async fn setup(_world: &mut World, _resources: &mut Resources) -> Result<(Gr
     };
 
     let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
+
+    // Initialize render passes
+
+    let mesh_pass = MeshPass::new(
+        &mut device,
+        &swap_chain_desc,
+        world,
+        resources
+    )?;
     
-    Ok((Graphics {
-        device,
-        swap_chain,
-        sc_desc: swap_chain_desc,
-        surface,
-        queue,
-        window,
-        render_passes: Vec::new(),
-    }, event_loop))
+    Ok(
+        (Graphics {
+            device,
+            swap_chain,
+            sc_desc: swap_chain_desc,
+            surface,
+            queue,
+            window,
+            mesh_pass,
+        },
+        event_loop)
+    )
 }

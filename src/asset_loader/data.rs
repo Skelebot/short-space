@@ -1,25 +1,37 @@
 use crate::graphics::mesh::Vertex;
-pub struct ModelData {
+pub struct MeshData {
+    pub parts: Vec<MeshPartData>,
+}
+
+pub struct MeshPartData {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
-    pub texture_img: image::RgbaImage,
+    pub material: MaterialData,
 }
 
-pub struct MeshPart {
-    pub vertices: Vec<Vertex>,
-    pub indices: Vec<u16>,
-    pub material: MeshMaterial,
+pub struct MaterialData {
+    pub specular_coefficient: f32,
+    pub color_ambient: [f32; 3],
+    pub color_diffuse: [f32; 3],
+    pub color_specular: [f32; 3],
+    pub color_emissive: [f32; 3],
+    pub alpha: f32,
+    pub lighting: bool,
+    // TODO: Add all the other maps
+    pub diffuse_map: Option<image::RgbaImage>,
 }
 
-// Re-export illumination
-pub use wavefront_obj::mtl::Illumination;
-pub struct MeshMaterial {
-    specular_coefficient: f32,
-    color_ambient: [f32; 3],
-    color_diffuse: [f32; 3],
-    color_specular: [f32; 3],
-    color_emmisive: [f32; 3],
-    alpha: f32,
-    illumination: Illumination,
+impl Default for MaterialData {
+    fn default() -> Self {
+        MaterialData {
+            specular_coefficient: 1.0,
+            color_ambient: [1.0, 0.0, 1.0],
+            color_diffuse: [0.0, 0.0, 0.0],
+            color_specular: [0.0, 0.0, 0.0],
+            color_emissive: [0.0, 0.0, 0.0],
+            lighting: true,
+            alpha: 1.0,
+            diffuse_map: None,
+        }
+    }
 }
-
