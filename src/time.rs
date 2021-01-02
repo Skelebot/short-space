@@ -18,10 +18,7 @@ impl Time {
 
 use legion::system;
 #[system]
-pub fn update_time(
-    #[resource] time: &mut Time,
-) {
-
+pub fn update_time(#[resource] time: &mut Time) {
     let dur = time.last_instant.elapsed();
     let delta = (dur.as_secs() as f64 + dur.subsec_nanos() as f64 / 1_000_000_000.0) as f32;
 

@@ -1,11 +1,13 @@
 #![allow(dead_code)]
-pub struct Atlas { pub entity: Entity }
+pub struct Atlas {
+    pub entity: Entity,
+}
 #[derive(PartialEq, Eq, Debug)]
 pub enum PlayerState {
-    Normal,     // Can accelerate and turn
-    Noclip,     // noclip movement
-    Spectator,  // still run into walls
-    Dead,       // no acceleration or turning, but still free falling
+    Normal,    // Can accelerate and turn
+    Noclip,    // noclip movement
+    Spectator, // still run into walls
+    Dead,      // no acceleration or turning, but still free falling
 }
 #[derive(PartialEq, Eq, Debug)]
 pub enum MovementState {
@@ -21,11 +23,11 @@ pub struct Player {
     pub flags: u16,
 }
 
-use legion::{Entity, system, world::SubWorld, IntoQuery};
-use crate::{GameState, GameSettings, time::Time};
 use crate::graphics::Camera;
-use crate::physics::*;
 use crate::input::{self, InputState};
+use crate::physics::*;
+use crate::{time::Time, GameSettings, GameState};
+use legion::{system, world::SubWorld, Entity, IntoQuery};
 
 #[system(for_each)]
 #[read_component(Collider)]
@@ -45,10 +47,14 @@ pub fn player_movement(
     //collider: &Collider,
     world: &mut SubWorld,
 ) {
-    if game_state.paused { return; }
+    if game_state.paused {
+        return;
+    }
     // Get the all components belonging to the player-controlled player (here called Atlas)
     // For now, we only care about the Atlas player
-    if *entity != atlas.entity { return; }
+    if *entity != atlas.entity {
+        return;
+    }
 
     player.ground_entity = None;
     // Reduce all timers connected with moving
@@ -85,7 +91,7 @@ pub fn player_movement(
                     // the shape is hollow, calculating the normal and toi to it's outer wall.
                     // REVIEW: Solid ray traces are *much* faster than non-solid, this is set to false to make development
                     // easier. Consider changing it to true
-                    false
+                    false,
                 );
                 debug!("hit: {}", intersection.is_some());
                 // Was on ground, but now suddenly i'm not
@@ -112,7 +118,7 @@ pub fn player_movement(
         // Technically, Dead shouldn't return, because corpses still fly because of their velocity
         // TODO: Make corpses fly
         // In Source, Dead isn't even an option (REVIEW: Remove?)
-        PlayerState::Dead => {},
+        PlayerState::Dead => {}
         PlayerState::Spectator => {
             //check_duck(input_state, player);
             //apply_friction(&player, velocity, time);
@@ -141,16 +147,15 @@ pub fn player_movement(
 
             // PM_DropTimers();
             // return;
-        },
+        }
         PlayerState::Noclip => {
-
             //let fmove = input_state.fwdmove * game_settings.noclip_speed;
             //let smove = input_state.sidemove * game_settings.noclip_speed;
 
             //let forward = (position.rotation * na::Vector3::x()).normalize() * fmove;
             //// TODO: negate?
             //let side = (position.rotation * na::Vector3::y()).normalize() * smove;
-            
+
             //let mut wishvel = forward + side;
             //wishvel.z += input_state.upmove * game_settings.noclip_speed;
 
@@ -171,7 +176,7 @@ pub fn player_movement(
                     input_state.get_axis_state(&input::SIDE_AXIS),
                     input_state.get_axis_state(&input::FWD_AXIS),
                     input_state.get_axis_state(&input::UP_AXIS),
-                //).normalize();
+                    //).normalize();
                 );
                 //let current_speed = velocity.linear.dot(&wishdir);
 
@@ -195,7 +200,6 @@ pub fn player_movement(
                 if input_state.is_action_pressed(&input::SPRINT_ACTION) {
                     velocity.linear *= game_settings.sprint_multiplier;
                 }
-
             } // Accelerate
 
             // Bleeding off speed(?)
@@ -210,17 +214,15 @@ pub fn player_movement(
             // PM_DropTimers();
             // Move only the camera
             //let speed = time.delta * game_settings.noclip_speed;
-            //println!("upmove: {:?}", input_state.upmove);
-            //let direction = 
+            //let direction =
             //camera.position
             //* na::Vector3::new(
             //    input_state.fwdmove,
             //    -input_state.sidemove,
             //    input_state.upmove,
             //);
-            //println!("dir: {:?}", direction);
             //camera.position.translation.vector += direction * speed;
-        },
+        }
         // No movement at all
         PlayerState::Normal => {
             // PM_CheckDuck();
@@ -261,7 +263,9 @@ fn check_duck(input_state: &InputState, player: &mut Player) {
 fn apply_friction(player: &Player, velocity: &mut Velocity, time: &Time) {
     // if pml.walking {vec[2] = 0}
     let speed = velocity.linear.magnitude();
-    if speed < 0.001 { return; }
+    if speed < 0.001 {
+        return;
+    }
 
     let mut drop = 0.0;
     // Apply ground friction
@@ -272,7 +276,9 @@ fn apply_friction(player: &Player, velocity: &mut Velocity, time: &Time) {
     }
 
     let mut newspeed = speed - drop;
-    if newspeed < 0.0 { newspeed = 0.0 }
+    if newspeed < 0.0 {
+        newspeed = 0.0
+    }
     if newspeed != speed {
         // Determine proportion of old speed we are using
         newspeed /= speed;
@@ -280,7 +286,6 @@ fn apply_friction(player: &Player, velocity: &mut Velocity, time: &Time) {
         velocity.linear *= newspeed;
     }
 }
-
 
 // TODO_E: Move all to GameSettings (same as noclip_speed)
 const STOPSPEED: f32 = 100.0;

@@ -1,14 +1,14 @@
 use nalgebra as na;
 
-use crate::graphics::Camera;
-use crate::time::Time;
 use crate::game_state::GameState;
+use crate::graphics::Camera;
 use crate::settings::GameSettings;
+use crate::time::Time;
 
-use legion::{World, Resources};
+use legion::{Resources, World};
 
-use winit::event::VirtualKeyCode;
 use winit::event::ElementState;
+use winit::event::VirtualKeyCode;
 
 pub enum Axis {
     KeyboardAxis(VirtualKeyCode, VirtualKeyCode),
@@ -43,17 +43,18 @@ impl InputState {
     pub fn handle_key_event(&mut self, keycode: &VirtualKeyCode, state: &ElementState) {
         let offset = *keycode as u32 / 32;
         match state {
-            ElementState::Pressed => self.pressed_keys[offset as usize] |= 1 << (*keycode as u32 - (offset*32)),
-            ElementState::Released => self.pressed_keys[offset as usize] &= !(1 << (*keycode as u32 - (offset*32))),
+            ElementState::Pressed => {
+                self.pressed_keys[offset as usize] |= 1 << (*keycode as u32 - (offset * 32))
+            }
+            ElementState::Released => {
+                self.pressed_keys[offset as usize] &= !(1 << (*keycode as u32 - (offset * 32)))
+            }
         }
     }
 
     pub fn is_key_pressed(&self, keycode: &VirtualKeyCode) -> bool {
         let offset = *keycode as u32 / 32;
-        match self.pressed_keys[offset as usize] & 1 << (*keycode as u32 - (offset*32)) {
-            0 => false,
-            _ => true,
-        }
+        self.pressed_keys[offset as usize] & 1 << (*keycode as u32 - (offset * 32)) != 0
     }
 
     /// Get the state of an axis
@@ -79,24 +80,31 @@ impl InputState {
     }
 }
 
-
-pub fn handle_keyboard_input(input: winit::event::KeyboardInput, _world: &mut World, resources: &mut Resources) {
+pub fn handle_keyboard_input(
+    input: winit::event::KeyboardInput,
+    _world: &mut World,
+    resources: &mut Resources,
+) {
     if let Some(vkeycode) = input.virtual_keycode {
-
         let mut input_state = resources.get_mut::<InputState>().unwrap();
 
         match (vkeycode, input.state) {
             (VirtualKeyCode::Escape, ElementState::Pressed) => {
                 let mut game_state = resources.get_mut::<GameState>().unwrap();
                 game_state.paused = !game_state.paused;
-            },
+            }
             (keycode, state) => input_state.handle_key_event(&keycode, &state),
         }
     }
 }
 
 // TODO: Move camera/delta/settings etc to a System, InputState should be the only thing altered in this function
-pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, window: &winit::window::Window, _world: &mut World, resources: &mut Resources) {
+pub fn handle_cursor_moved(
+    input: winit::dpi::PhysicalPosition<f64>,
+    window: &winit::window::Window,
+    _world: &mut World,
+    resources: &mut Resources,
+) {
     let time = resources.get::<Time>().unwrap();
     let game_state = resources.get::<GameState>().unwrap();
     //let atlas = resources.get::<Atlas>().unwrap();
@@ -112,11 +120,10 @@ pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, window: &wi
             input_state.last_cursor_pos.1 - input.y,
             &mut camera.position,
             delta,
-            &settings
+            &settings,
         );
         let size = window.inner_size();
-        let middle = 
-        winit::dpi::PhysicalPosition {
+        let middle = winit::dpi::PhysicalPosition {
             x: size.width / 2,
             y: size.height / 2,
         };
@@ -126,23 +133,22 @@ pub fn handle_cursor_moved(input: winit::dpi::PhysicalPosition<f64>, window: &wi
 }
 
 // TODO: Move to a separate module
-fn handle_mouse_motion (xrel: f64, yrel: f64, position: &mut na::Isometry3<f32>, delta: f32, settings: &GameSettings) {
-
+fn handle_mouse_motion(
+    xrel: f64,
+    yrel: f64,
+    position: &mut na::Isometry3<f32>,
+    delta: f32,
+    settings: &GameSettings,
+) {
     let xoffset = xrel as f32 * delta * settings.mouse_sensitivity;
     let yoffset = yrel as f32 * delta * settings.mouse_sensitivity;
 
-    let zrot = na::UnitQuaternion::from_axis_angle(
-        &na::Vector3::z_axis(), 
-        xoffset,
-    );
-    let xrot = na::UnitQuaternion::from_axis_angle(
-        &na::Vector3::x_axis(), 
-        yoffset,
-    );
+    let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), xoffset);
+    let xrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::x_axis(), yoffset);
 
     // Note: By changing the order of multiplications here, we can make the camera
     // do all rotations around it's own relative axes (including the z axis),
-    // which would make it a full 3D-space camera. This actually isn't good 
+    // which would make it a full 3D-space camera. This actually isn't good
     // in FPS games, where the player never has to "roll (rotate around relative x)"
     // the camera. To fix this, we rotate around the z axis last, so it's always
     // the world's absolute z axis.
@@ -150,8 +156,5 @@ fn handle_mouse_motion (xrel: f64, yrel: f64, position: &mut na::Isometry3<f32>,
     // Note 2: When multiplying transformations, the order is actually done backwards
     // (xrot is the first rotation performed, because it's the last one in the multiplication)
 
-    position.rotation = 
-        zrot
-        * position.rotation
-        * xrot
+    position.rotation = zrot * position.rotation * xrot
 }

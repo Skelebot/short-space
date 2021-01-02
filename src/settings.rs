@@ -13,7 +13,6 @@
 //
 //pub const MIN_WALK_NORMAL: f32 = 0.4;
 
-// TODO: Load from a config file
 #[derive(Clone)]
 pub struct GameSettings {
     pub noclip_speed: f32,
@@ -22,8 +21,12 @@ pub struct GameSettings {
     pub vsync: bool,
     pub window_width: i32,
     pub window_height: i32,
+
+    pub player_height: f32,
+    pub player_radius: f32,
 }
 
+// TODO: Load this from a config file
 impl Default for GameSettings {
     fn default() -> Self {
         GameSettings {
@@ -33,6 +36,9 @@ impl Default for GameSettings {
             vsync: true,
             window_width: 800,
             window_height: 600,
+
+            player_height: 2.0,
+            player_radius: 0.40,
         }
     }
 }

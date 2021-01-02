@@ -1,8 +1,6 @@
 //#[macro_use]
 //extern crate render_gl_derive;
 
-#![feature(or_patterns)]
-
 extern crate nalgebra as na;
 extern crate ncollide3d as nc;
 
@@ -10,30 +8,31 @@ extern crate ncollide3d as nc;
 extern crate log;
 
 pub mod graphics;
-use graphics::Graphics;
+
+use graphics::{color::Rgb, Graphics, RenderMesh};
 
 mod asset_loader;
-mod input;
-mod settings;
 mod game_state;
+mod input;
 mod physics;
-mod time;
 mod player;
+mod settings;
+mod time;
 
 #[cfg(test)]
 mod tests;
 
-use settings::GameSettings;
 use anyhow::Result;
-use legion::{World, Resources, Schedule};
+use legion::{Resources, Schedule, World};
+use settings::GameSettings;
 
 use game_state::GameState;
 
+use futures::executor::block_on;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
 };
-use futures::executor::block_on;
 
 fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
@@ -45,12 +44,13 @@ fn main() -> Result<(), anyhow::Error> {
     let mut resources = Resources::default();
 
     // AssetLoader is already needed to load shaders
-    let asset_loader = asset_loader::AssetLoader::from_relative_exe_path(std::path::Path::new("assets"))?;
+    let asset_loader =
+        asset_loader::AssetLoader::from_relative_exe_path(std::path::Path::new("assets"))?;
     resources.insert(asset_loader);
 
     let (mut graphics, event_loop) = block_on(graphics::setup(&mut world, &mut resources))?;
 
-    setup_resources(&mut world, &mut resources, &graphics.window)?;
+    setup_resources(&mut world, &mut resources, &graphics.window);
     setup_scene(&mut world, &mut resources, &mut graphics)?;
 
     block_on(run(graphics, event_loop, world, resources))?;
@@ -64,7 +64,6 @@ async fn run(
     mut world: legion::World,
     mut resources: legion::Resources,
 ) -> Result<()> {
-
     // Create the schedule that will be executed every frame
     let mut schedule = Schedule::builder()
         .add_thread_local(time::update_time_system())
@@ -73,62 +72,73 @@ async fn run(
 
     debug!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
-        if resources.get::<GameState>().unwrap().should_exit {
-            *control_flow = ControlFlow::Exit;
-        }
-        if !resources.get::<GameState>().unwrap().paused {
-            graphics.window.set_cursor_grab(true).unwrap();
-            graphics.window.set_cursor_visible(false);
-        } else {
-            graphics.window.set_cursor_grab(false).unwrap();
-            graphics.window.set_cursor_visible(true);
+        {
+            *control_flow = ControlFlow::Poll;
+            if resources.get::<GameState>().unwrap().should_exit {
+                *control_flow = ControlFlow::Exit;
+            }
+            if !resources.get::<GameState>().unwrap().paused {
+                graphics.window.set_cursor_grab(true).unwrap();
+                graphics.window.set_cursor_visible(false);
+            } else {
+                graphics.window.set_cursor_grab(false).unwrap();
+                graphics.window.set_cursor_visible(true);
+            }
         }
         match event {
             // If the user closed the window, exit
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => *control_flow = ControlFlow::Exit,
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
             // Handle window resizing
-            Event::WindowEvent { event: WindowEvent::Resized(size), .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::Resized(size),
+                ..
+            } => {
                 graphics.resize(size, &mut world, &mut resources).unwrap();
-            },
+            }
             // Handle user input
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::KeyboardInput { input, .. } => input::handle_keyboard_input(input, &mut world, &mut resources),
-                WindowEvent::CursorMoved { position, .. } => input::handle_cursor_moved(position, &graphics.window, &mut world, &mut resources),
-                _ => {},
+                WindowEvent::KeyboardInput { input, .. } => {
+                    input::handle_keyboard_input(input, &mut world, &mut resources)
+                }
+                WindowEvent::CursorMoved { position, .. } => input::handle_cursor_moved(
+                    position,
+                    &graphics.window,
+                    &mut world,
+                    &mut resources,
+                ),
+                _ => {}
             },
             // Emitted when all of the event loop's input events have been processed and redraw processing is about to begin.
             // Normally, we would use Event::RedrawRequested for rendering, but we can also just render here, because it's a game
             // that has to render continuously either way.
             Event::MainEventsCleared => {
-                // Execute all systems
+                // Run all systems
                 schedule.execute(&mut world, &mut resources);
                 // Render
                 graphics.render(&mut world, &mut resources).unwrap();
-            },
+            }
             // We already render frames in MainEventsCleared
-            Event::RedrawRequested(_) => {},
-            _ => {},
+            Event::RedrawRequested(_) => {}
+            _ => {}
         }
     })
 }
 
 // TODO: Create a loading state and add a loding screen
-fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit::window::Window) -> Result<()> {
+fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit::window::Window) {
     // Set up the camera
     let size = window.inner_size();
     let aspect = size.width as f32 / size.height as f32;
-    let mut camera = crate::graphics::Camera::new(aspect, 45_f32.to_radians(), 0.001, 1000.0); 
-    camera.position.rotation = na::UnitQuaternion::from_axis_angle(
-        &na::Vector::x_axis(), 
-        0.0f32.to_radians()
-    );
+    let camera = crate::graphics::Camera::new(aspect, 45_f32.to_radians(), 0.001, 1000.0);
     resources.insert(camera);
 
     // Create settings for the game
     // TODO: Read settings from a file
-    let settings: GameSettings = Default::default(); 
-    
+    let settings: GameSettings = Default::default();
+
     // Create the asset loader
     //let asset_loader = AssetLoader::from_relative_exe_path(Path::new("assets")).unwrap();
 
@@ -149,52 +159,107 @@ fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit
     resources.insert(phys_settings);
     resources.insert(game_state);
     resources.insert(time);
-
-    Ok(())
 }
 
 // TODO: Create a loading state and add a loding screen
-fn setup_scene(world: &mut World, resources: &mut Resources, graphics: &mut Graphics) -> Result<()> {
+fn setup_scene(
+    world: &mut World,
+    resources: &mut Resources,
+    graphics: &mut Graphics,
+) -> Result<()> {
     // Create a (temporary) CommandEncoder for loading data to GPU
-    let mut encoder = graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    let mut encoder = graphics
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
     // Load models from an obj file and add them into the world
     {
         let loader = resources.get::<asset_loader::AssetLoader>().unwrap();
 
-        loader.load_obj_set("models/map.obj")?
-        .into_iter()
-            .map(
-                |mesh_data | {
-                    graphics::mesh::RenderMesh::from_parts(
-                        mesh_data.parts,
-                        &mut graphics.mesh_pass,
-                        &mut graphics.device,
-                        &mut encoder,
-                    )
-                }
-            )
+        loader
+            .load_obj_set("models/map.obj")?
+            .into_iter()
+            .map(|mesh_data| {
+                RenderMesh::from_parts(
+                    mesh_data.parts,
+                    &graphics.mesh_pass,
+                    &mut graphics.device,
+                    &mut encoder,
+                )
+            })
             .for_each(|render_mesh| {
                 let pos = physics::Position::identity();
                 world.push((pos, render_mesh));
             });
+
+        let player_mesh = {
+            let data = loader
+                .load_obj_set("models/player.obj")?
+                .into_iter()
+                .next()
+                .unwrap();
+            RenderMesh::from_parts(
+                data.parts,
+                &graphics.mesh_pass,
+                &mut graphics.device,
+                &mut encoder,
+            )
+        };
+        world.push((physics::Position::translation(2.0, 0.0, 0.0), player_mesh));
+        let player_mesh = {
+            let data = loader
+                .load_obj_set("models/player.obj")?
+                .into_iter()
+                .next()
+                .unwrap();
+            RenderMesh::from_parts(
+                data.parts,
+                &graphics.mesh_pass,
+                &mut graphics.device,
+                &mut encoder,
+            )
+        };
+        world.push((physics::Position::translation(2.0, -3.0, 0.0), player_mesh));
     }
     graphics.queue.submit(Some(encoder.finish()));
 
-    // Create the player
-    let pos = 
-    physics::Position::from(na::Isometry3::<f32>::from_parts(
-        na::Translation3::new(0.0, 0.0, 0.0),
-        na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), -90.0_f32.to_radians()),
+    // Add a light
+    let light = crate::graphics::mesh_pass::shadow_pass::Light::new(
+        na::Orthographic3::new(-50.0, 50.0, -50.0, 50.0, -50.0, 50.0),
+        Rgb::new(0.0, 0.0, 1.0),
+        &mut graphics.mesh_pass.shadow_pass,
+    );
+    world.push((physics::Position::translation(2.0, -4.0, 1.0), light));
+
+    // Add a light
+    let light = crate::graphics::mesh_pass::shadow_pass::Light::new(
+        na::Orthographic3::new(-30.0, 30.0, -30.0, 30.0, -30.0, 30.0),
+        Rgb::new(1.0, 0.0, 0.0),
+        &mut graphics.mesh_pass.shadow_pass,
+    );
+    world.push((
+        //physics::Position::translation(0.0, 0.0, 10.0),
+        physics::Position::from_parts(
+            na::Translation::from(na::Vector3::new(0.0, 0.0, 5.0)),
+            na::UnitQuaternion::from_axis_angle(&na::Vector::x_axis(), 90.0_f32.to_radians()),
+            //na::UnitQuaternion::from_axis_angle(&na::Vector::z_axis(), 0.0_f32.to_radians()),
+        ),
+        light,
     ));
-    use nc::shape::{ShapeHandle, Capsule};
+
+
+
+    // Create the player
+    let pos = physics::Position::from_parts(
+        na::Translation3::new(0.0, -2.0, 0.1),
+        na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), -90.0_f32.to_radians()),
+    );
+    use nc::shape::{Capsule, ShapeHandle};
     let collider = physics::Collider::from(
-        ShapeHandle::new(Capsule::new(1.0, 1.0))
+        // TODO: Load from settings
+        ShapeHandle::new(Capsule::new(2.0, 0.4)),
     );
-    let vel = physics::Velocity::new(
-        na::Vector3::repeat(0.0_f32), 
-        na::Vector3::repeat(0.0)
-    );
+    let vel = physics::Velocity::new(na::Vector3::repeat(0.0_f32), na::Vector3::repeat(0.0));
     use player::*;
     let player = Player {
         state: PlayerState::Noclip,

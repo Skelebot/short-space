@@ -1,7 +1,6 @@
-
-use anyhow::{Result, Error};
-use legion::{World, Resources};
-use mesh::MeshPass;
+use anyhow::{Error, Result};
+use legion::{Resources, World};
+use mesh_pass::MeshPass;
 use winit::dpi::PhysicalSize;
 
 use wgpu::util::DeviceExt;
@@ -9,11 +8,16 @@ use wgpu::util::DeviceExt;
 mod setup;
 pub use setup::setup;
 
-pub mod mesh;
-mod pass;
-pub use pass::Pass;
 mod camera;
 pub use camera::Camera;
+
+pub mod color;
+
+mod pass;
+pub use pass::Pass;
+
+pub mod mesh_pass;
+pub use mesh_pass::RenderMesh;
 
 pub struct Graphics {
     pub device: wgpu::Device,
@@ -22,12 +26,16 @@ pub struct Graphics {
     pub surface: wgpu::Surface,
     pub queue: wgpu::Queue,
     pub window: winit::window::Window,
-    //pub render_passes: Vec<Box<dyn Pass>>,
     pub mesh_pass: MeshPass,
 }
 
 impl Graphics {
-    pub fn resize(&mut self, size: PhysicalSize<u32>, world: &mut World, resources: &mut Resources) -> Result<()> {
+    pub fn resize(
+        &mut self,
+        size: PhysicalSize<u32>,
+        world: &mut World,
+        resources: &mut Resources,
+    ) -> Result<()> {
         // Recreate the swap chain with the new size
         self.sc_desc.width = size.width;
         self.sc_desc.height = size.height;
@@ -39,25 +47,22 @@ impl Graphics {
             &mut self.queue,
             &mut self.sc_desc,
             &world,
-            &resources
+            &resources,
         )?;
-        //for pass in self.render_passes.iter_mut() {
-        //    pass.resize(&mut self, &world, &resources)?;
-        //}
 
         Ok(())
     }
 
     pub fn render(&mut self, world: &mut World, resources: &mut Resources) -> Result<()> {
-        let mut frame = self.swap_chain
+        let mut frame = self
+            .swap_chain
             .get_current_frame()
-            .map_err(|err| 
-                Error::msg("Failed to acquire next swap chain texture")
-                    .context(err)
-            )?
+            .map_err(|err| Error::msg("Failed to acquire next swap chain texture").context(err))?
             .output;
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });                    
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         // Render onto the frame with render passes
         self.mesh_pass.render(
@@ -66,16 +71,13 @@ impl Graphics {
             &mut encoder,
             &mut frame,
             &world,
-            &resources
+            &resources,
         )?;
-        //for pass in self.render_passes.iter_mut() {
-        //    pass.render(&mut encoder, &mut self.queue, &mut frame, &world, &resources)?;
-        //}
 
         self.queue.submit(Some(encoder.finish()));
         Ok(())
     }
-    
+
     pub fn upload_texture(
         device: &mut wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
@@ -96,17 +98,19 @@ impl Graphics {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: if srgb { wgpu::TextureFormat::Rgba8UnormSrgb } else { wgpu::TextureFormat::Rgba8Unorm },
+            format: if srgb {
+                wgpu::TextureFormat::Rgba8UnormSrgb
+            } else {
+                wgpu::TextureFormat::Rgba8Unorm
+            },
             usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
         });
         // Temporary buffer to copy data from into the texture
-        let tmp_buf = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&img.into_raw()),
-                usage: wgpu::BufferUsage::COPY_SRC,
-            }
-        );
+        let tmp_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&img.into_raw()),
+            usage: wgpu::BufferUsage::COPY_SRC,
+        });
         // Copy img's pixels from the temporary buffer into the texture buffer
         encoder.copy_buffer_to_texture(
             wgpu::BufferCopyView {
@@ -116,13 +120,13 @@ impl Graphics {
                     bytes_per_row: 4 * img_width,
                     rows_per_image: img_height,
                 },
-            }, 
+            },
             wgpu::TextureCopyView {
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
-            }, 
-            texture_extent
+            },
+            texture_extent,
         );
         // Return the texture handle
         texture

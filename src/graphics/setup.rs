@@ -1,10 +1,13 @@
-use winit::{event_loop::EventLoop, window::Window};
 use anyhow::Result;
-use legion::{World, Resources};
+use legion::{Resources, World};
+use winit::{event_loop::EventLoop, window::Window};
 
-use super::{Graphics, mesh::MeshPass};
+use super::{mesh_pass::MeshPass, Graphics};
 
-pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(Graphics, EventLoop<()>)> {
+pub async fn setup(
+    world: &mut World,
+    resources: &mut Resources,
+) -> Result<(Graphics, EventLoop<()>)> {
     let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let event_loop = EventLoop::new();
     let window = Window::new(&event_loop)?;
@@ -19,7 +22,9 @@ pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(Grap
             "webgpu" => wgpu::BackendBit::BROWSER_WEBGPU,
             other => panic!("Unknown backend: {}", other),
         }
-    } else { wgpu::BackendBit::PRIMARY };
+    } else {
+        wgpu::BackendBit::PRIMARY
+    };
 
     let instance = wgpu::Instance::new(backend);
     let size = window.inner_size();
@@ -32,7 +37,7 @@ pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(Grap
             compatible_surface: Some(&surface),
         })
         .await
-        .ok_or(
+        .ok_or_else(||
             anyhow::format_err!(
                 "Couldn't find a compatible graphics adapter for backend: {:?}\nIf you want to force a different backend, set the WGPU_BACKEND environmental variable.\nKeep in mind that OpenGL is not currently supported.",
             backend))?;
@@ -44,14 +49,16 @@ pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(Grap
     let (mut device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
-                features: wgpu::Features::empty(),
+                features: wgpu::Features::default(),
                 limits: wgpu::Limits::default(),
                 shader_validation: true,
-            }, 
+            },
             trace_dir.ok().as_ref().map(std::path::Path::new),
         )
         .await
-        .map_err(|err| anyhow::anyhow!(err).context(anyhow::Error::msg("Failed to create the graphics device")))?;
+        .map_err(|err| {
+            anyhow::anyhow!(err).context(anyhow::Error::msg("Failed to create the graphics device"))
+        })?;
 
     let swap_chain_desc = wgpu::SwapChainDescriptor {
         usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
@@ -66,15 +73,10 @@ pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(Grap
 
     // Initialize render passes
 
-    let mesh_pass = MeshPass::new(
-        &mut device,
-        &swap_chain_desc,
-        world,
-        resources
-    )?;
-    
-    Ok(
-        (Graphics {
+    let mesh_pass = MeshPass::new(&mut device, &swap_chain_desc, world, resources)?;
+
+    Ok((
+        Graphics {
             device,
             swap_chain,
             sc_desc: swap_chain_desc,
@@ -83,6 +85,6 @@ pub async fn setup(world: &mut World, resources: &mut Resources) -> Result<(Grap
             window,
             mesh_pass,
         },
-        event_loop)
-    )
+        event_loop,
+    ))
 }

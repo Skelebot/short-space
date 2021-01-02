@@ -3,7 +3,7 @@ pub struct GameState {
     pub paused: bool,
 }
 
-impl GameState{
+impl GameState {
     pub fn new() -> GameState {
         GameState {
             should_exit: false,

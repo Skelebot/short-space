@@ -1,8 +1,12 @@
 use super::*;
 
+//------------------------------
+// Camera
+//------------------------------
+
 #[test]
 fn camera_test() {
-    let aspect = 800.0/600.0;
+    let aspect = 800.0 / 600.0;
     let fov = 45.0;
     let znear = 0.1;
     let zfar = 100.0;
@@ -15,13 +19,8 @@ fn camera_test() {
     assert_eq!(cam_proj, proj.into_inner());
 
     let pos = na::Isometry3::from_parts(
-        na::Translation3::from(
-            na::Vector3::new(1.0, 3.0, 2.0)
-        ),
-        na::UnitQuaternion::from_axis_angle(
-            &na::Vector3::z_axis(),
-            90.0_f32.to_radians(),
-        )
+        na::Translation3::from(na::Vector3::new(1.0, 3.0, 2.0)),
+        na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 90.0_f32.to_radians()),
     );
     camera.position = pos;
 
@@ -29,8 +28,7 @@ fn camera_test() {
 
     let cam_view = camera.get_view_matrix();
     let view = {
-        let position: na::Point3<f32> = 
-            pos.translation.vector.into();
+        let position: na::Point3<f32> = pos.translation.vector.into();
         let target = pos * na::Point3::new(0.0, 1.0, 0.0);
         let up = pos * na::Vector3::z();
         na::Matrix::look_at_rh(&position, &target, &up)
@@ -39,11 +37,15 @@ fn camera_test() {
     assert_eq!(cam_view, view);
 }
 
+//------------------------------
+// Input
+//------------------------------
+
 // Rust_analyzer complains about these imports being unused
 #[allow(unused_imports)]
-use winit::event::{VirtualKeyCode::*, ElementState::*};
+use crate::input::{Action, Axis, InputState};
 #[allow(unused_imports)]
-use crate::input::{InputState, Axis, Action};
+use winit::event::{ElementState::*, VirtualKeyCode::*};
 #[test]
 fn test_keypress_simple() {
     let mut input_state = InputState::default();
@@ -98,4 +100,39 @@ fn test_keyboard_action() {
     assert!(input_state.is_action_pressed(&action));
     input_state.handle_key_event(&Power, &Released);
     assert!(!input_state.is_action_pressed(&action));
+}
+
+//------------------------------
+// Colors
+//------------------------------
+use crate::graphics::color::*;
+#[test]
+fn test_rgb() {
+    let a = Rgb::new(1.0_f32, 2.0, 3.0);
+    let b = Rgb::from([1.0_f32, 2.0, 3.0]);
+    assert!(a == b);
+
+    let c: [f32; 3] = a.into();
+    assert!(c == [1.0, 2.0, 3.0]);
+}
+
+#[test]
+fn test_rgba() {
+    let a = Rgba::new(1.0_f32, 2.0, 3.0, 4.0);
+    let b = Rgba::from([1.0_f32, 2.0, 3.0, 4.0]);
+    assert!(a == b);
+
+    let c: [f32; 4] = a.into();
+    assert!(c == [1.0, 2.0, 3.0, 4.0]);
+}
+
+#[test]
+fn test_conversion() {
+    let a = Rgb::new(1.0_f32, 2.0, 3.0);
+    let b = Rgba::new(1.0, 2.0, 3.0, 4.0);
+    let a_rgba = a.alpha(4.0);
+    let b_rgb = b.rgb();
+
+    assert!(a_rgba == b);
+    assert!(b_rgb == a);
 }

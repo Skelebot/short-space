@@ -2,7 +2,7 @@ mod velocity;
 pub use velocity::Velocity;
 
 pub struct Collider {
-    pub handle: nc::shape::ShapeHandle<f32>
+    pub handle: nc::shape::ShapeHandle<f32>,
 }
 
 impl From<nc::shape::ShapeHandle<f32>> for Collider {

@@ -2,9 +2,7 @@
 
 use na::storage::Storage;
 use na::{self, Isometry3, RealField, UnitQuaternion, Vector, Vector3, Vector6, U6};
-use std::mem;
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
-
 
 /// A velocity structure combining both the linear angular velocities of a point.
 #[repr(C)]
@@ -93,14 +91,18 @@ impl<N: RealField> Velocity<N> {
     ///
     /// The linear part is stored first.    #[inline]
     pub fn as_vector(&self) -> &Vector6<N> {
-        unsafe { mem::transmute(self) }
+        // TODO: Make sure this works
+        unsafe { &*(self as *const Velocity<N> as *const Vector6<N>) }
+        //unsafe { mem::transmute(self) }
     }
 
     /// This velocity seen as a mutable vector.
     ///
     /// The linear part is stored first.    #[inline]
     pub fn as_vector_mut(&mut self) -> &mut Vector6<N> {
-        unsafe { mem::transmute(self) }
+        // TODO: Make sure this works
+        unsafe { &mut *(self as *mut Velocity<N> as *mut Vector6<N>) }
+        //unsafe { mem::transmute(self) }
     }
 
     /// Create a velocity from a vector.
