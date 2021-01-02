@@ -4,8 +4,6 @@ pub use render_mesh::RenderMesh;
 pub mod pass;
 pub use pass::MeshPass;
 
-pub mod shadow_pass;
-
 mod material;
 mod pipeline;
 
@@ -36,7 +34,6 @@ impl Vertex {
 pub struct GlobalUniforms {
     pub(crate) view_proj: [[f32; 4]; 4],
     pub(crate) camera_pos: [f32; 3],
-    pub(crate) num_lights: u32,
 }
 
 #[repr(C)]

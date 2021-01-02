@@ -9,7 +9,7 @@ extern crate log;
 
 pub mod graphics;
 
-use graphics::{color::Rgb, Graphics, RenderMesh};
+use graphics::{Graphics, RenderMesh};
 
 mod asset_loader;
 mod game_state;
@@ -206,48 +206,8 @@ fn setup_scene(
             )
         };
         world.push((physics::Position::translation(2.0, 0.0, 0.0), player_mesh));
-        let player_mesh = {
-            let data = loader
-                .load_obj_set("models/player.obj")?
-                .into_iter()
-                .next()
-                .unwrap();
-            RenderMesh::from_parts(
-                data.parts,
-                &graphics.mesh_pass,
-                &mut graphics.device,
-                &mut encoder,
-            )
-        };
-        world.push((physics::Position::translation(2.0, -3.0, 0.0), player_mesh));
     }
     graphics.queue.submit(Some(encoder.finish()));
-
-    // Add a light
-    let light = crate::graphics::mesh_pass::shadow_pass::Light::new(
-        na::Orthographic3::new(-50.0, 50.0, -50.0, 50.0, -50.0, 50.0),
-        Rgb::new(0.0, 0.0, 1.0),
-        &mut graphics.mesh_pass.shadow_pass,
-    );
-    world.push((physics::Position::translation(2.0, -4.0, 1.0), light));
-
-    // Add a light
-    let light = crate::graphics::mesh_pass::shadow_pass::Light::new(
-        na::Orthographic3::new(-30.0, 30.0, -30.0, 30.0, -30.0, 30.0),
-        Rgb::new(1.0, 0.0, 0.0),
-        &mut graphics.mesh_pass.shadow_pass,
-    );
-    world.push((
-        //physics::Position::translation(0.0, 0.0, 10.0),
-        physics::Position::from_parts(
-            na::Translation::from(na::Vector3::new(0.0, 0.0, 5.0)),
-            na::UnitQuaternion::from_axis_angle(&na::Vector::x_axis(), 90.0_f32.to_radians()),
-            //na::UnitQuaternion::from_axis_angle(&na::Vector::z_axis(), 0.0_f32.to_radians()),
-        ),
-        light,
-    ));
-
-
 
     // Create the player
     let pos = physics::Position::from_parts(

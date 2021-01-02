@@ -9,8 +9,8 @@ use crate::physics;
 use legion::{IntoQuery, Resources, World};
 
 use super::{
-    material::MaterialShading, pipeline::MeshPipeline, pipeline::PipelineType,
-    shadow_pass::ShadowPass, shadow_pass::*, GlobalUniforms, RenderMesh,
+    material::MaterialShading, pipeline::MeshPipeline, pipeline::PipelineType, GlobalUniforms,
+    RenderMesh,
 };
 
 pub struct MeshPassPipelines {
@@ -30,8 +30,6 @@ pub struct MeshPass {
     pub mesh_bind_group_layout: wgpu::BindGroupLayout,
 
     pub pipelines: MeshPassPipelines,
-
-    pub shadow_pass: ShadowPass,
 
     depth_texture: wgpu::Texture,
     // For clearing
@@ -64,8 +62,6 @@ impl MeshPass {
             });
 
         log::debug!("Initializing the shadow pass");
-        let shadow_pass =
-            ShadowPass::new(device, sc_desc, &mesh_bind_group_layout, _world, resources)?;
 
         log::debug!("Initializing the mesh pass");
         // Set 0
@@ -86,34 +82,6 @@ impl MeshPass {
                         },
                         count: None,
                     },
-                    // Lights
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::UniformBuffer {
-                            dynamic: false,
-                            min_binding_size: wgpu::BufferSize::new(shadow_pass.light_uniform_size),
-                        },
-                        count: None,
-                    },
-                    // Shadow texture
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::SampledTexture {
-                            multisampled: false,
-                            component_type: wgpu::TextureComponentType::Float,
-                            dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    // Shadow texture sampler
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler { comparison: true },
-                        count: None,
-                    },
                 ],
             });
 
@@ -121,7 +89,6 @@ impl MeshPass {
         let global_uniforms = GlobalUniforms {
             view_proj: na::Matrix4::identity().into(),
             camera_pos: na::Vector3::identity().into(),
-            num_lights: 0,
         };
 
         let global_uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -133,30 +100,10 @@ impl MeshPass {
         let global_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &global_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(global_uniform_buf.slice(..)),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(
-                        shadow_pass.light_uniform_buf.slice(..),
-                    ),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::TextureView(
-                        &shadow_pass
-                            .shadow_texture
-                            .create_view(&wgpu::TextureViewDescriptor::default()),
-                    ),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Sampler(&shadow_pass.shadow_sampler),
-                },
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(global_uniform_buf.slice(..)),
+            }],
         });
 
         // Depth testing
@@ -238,7 +185,6 @@ impl MeshPass {
             global_bind_group_layout,
             global_uniform_buf,
             pipelines,
-            shadow_pass,
             mesh_bind_group_layout,
             depth_texture,
             depth_texture_view,
@@ -278,12 +224,7 @@ impl Pass for MeshPass {
         let mut camera = resources.get_mut::<Camera>().unwrap();
         camera.update_aspect(sc_desc.width as f32 / sc_desc.height as f32);
         let proj_view: [[f32; 4]; 4] = camera.get_view_projection_matrix().into();
-        queue.write_buffer(
-            &self.global_uniform_buf,
-            0,
-            // FIXME: cast_slice()?
-            bytemuck::bytes_of(&proj_view),
-        );
+        queue.write_buffer(&self.global_uniform_buf, 0, bytemuck::bytes_of(&proj_view));
         Ok(())
     }
     fn render(
@@ -304,7 +245,6 @@ impl Pass for MeshPass {
         let global_uniforms = GlobalUniforms {
             view_proj: view_proj.into(),
             camera_pos: camera.position.translation.vector.into(),
-            num_lights: self.shadow_pass.light_count as u32,
         };
         queue.write_buffer(
             &self.global_uniform_buf,
@@ -326,66 +266,7 @@ impl Pass for MeshPass {
             queue.write_buffer(&rmesh.uniform_buf, 0, bytemuck::bytes_of(&transform));
         }
 
-        // Select every light with a position
-        // TODO: update buffers only if the position or light parameters have been changed (maybe_changed filter)
-        let mut light_query = <(&Light, &physics::Position)>::query();
-        // Update lights
-        for (index, (light, position)) in light_query.iter(world).enumerate() {
-            let raw = light.into_raw(&position);
-            queue.write_buffer(
-                &self.shadow_pass.light_uniform_buf,
-                (index * std::mem::size_of::<LightUniforms>()) as wgpu::BufferAddress,
-                bytemuck::bytes_of(&raw),
-            );
-        }
-
         // Begin rendering
-        encoder.push_debug_group("shadow pass");
-        // Bake every mesh's shadow from every light to the shadow texture
-        for (index, (light, _)) in light_query.iter(world).enumerate() {
-            encoder.push_debug_group(&format!("shadow pass {}", index));
-            // The light uniform already has the projection
-            // copy it to the shadow uniform buffer
-            encoder.copy_buffer_to_buffer(
-                &self.shadow_pass.light_uniform_buf,
-                (index * std::mem::size_of::<LightUniforms>()) as wgpu::BufferAddress,
-                &self.shadow_pass.uniform_buf,
-                0,
-                64, // size_of::<[[f32; 4]; 4]>
-            );
-            encoder.insert_debug_marker("render meshes");
-            {
-                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    // Do not render any color
-                    color_attachments: &[],
-                    // Render only the depth buffer
-                    depth_stencil_attachment: Some(
-                        wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                            attachment: &light.target_view,
-                            depth_ops: Some(wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(1.0),
-                                store: true,
-                            }),
-                            stencil_ops: None,
-                        },
-                    ),
-                });
-
-                render_pass.set_pipeline(&self.shadow_pass.pipeline);
-                render_pass.set_bind_group(0, &self.shadow_pass.bind_group, &[]);
-                for (mesh, _, _) in mesh_query.iter(world) {
-                    render_pass.set_bind_group(1, &mesh.bind_group, &[]);
-                    for part in &mesh.parts {
-                        // We do not care about the material, only the shape
-                        render_pass.set_index_buffer(part.index_buf.slice(..));
-                        render_pass.set_vertex_buffer(0, part.vertex_buf.slice(..));
-                        render_pass.draw_indexed(0..part.index_count as u32, 0, 0..1);
-                    }
-                }
-            }
-            encoder.pop_debug_group();
-        }
-        encoder.pop_debug_group();
 
         // Render every mesh
         encoder.push_debug_group("forward rendering pass");

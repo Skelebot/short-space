@@ -62,7 +62,7 @@ pub fn player_movement(
     // Categorize position
     {
         // See if the player is standing on something solid
-        let mut test_vec = position.translation.vector.clone();
+        let mut test_vec = position.translation.vector;
 
         const GROUND_TEST_OFFSET: f32 = 6.20;
         test_vec.z -= GROUND_TEST_OFFSET;
@@ -131,7 +131,7 @@ pub fn player_movement(
 
             wishvel.z += scale * input_state.get_axis_state(&input::UP_AXIS);
 
-            let wishdir = wishvel.clone();
+            let wishdir = wishvel;
             let wishspeed = wishdir.norm();
             //  PM_Accelerate();
             // q2 style

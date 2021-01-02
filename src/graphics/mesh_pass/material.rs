@@ -17,10 +17,7 @@ use MaterialShading::*;
 use super::MeshPass;
 impl MaterialShading {
     pub fn is_lit(&self) -> bool {
-        match self {
-            UntexturedUnlit | TexturedUnlit => false,
-            _ => true,
-        }
+        matches!(self, UntexturedUnlit | TexturedUnlit)
     }
     pub fn is_textured(&self) -> bool {
         match self {
@@ -29,10 +26,7 @@ impl MaterialShading {
         }
     }
     pub fn is_emissive(&self) -> bool {
-        match self {
-            TexturedEmissive | UntexturedEmissive => true,
-            _ => false,
-        }
+        matches!(self, TexturedEmissive | UntexturedEmissive)
     }
 }
 

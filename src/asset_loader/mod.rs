@@ -120,10 +120,9 @@ impl AssetLoader {
                     color_ambient: mat.color_ambient.into(),
                     color_diffuse: mat.color_diffuse.into(),
                     color_specular: mat.color_specular.into(),
-                    color_emissive: color::Rgb::from(
-                        mat.color_emissive
-                            .map_or(color::Rgb::default(), |m| m.into()),
-                    ),
+                    color_emissive: mat
+                        .color_emissive
+                        .map_or(color::Rgb::default(), |m| m.into()),
                     alpha: mat.alpha as f32,
                     // TODO: Replace unwraps here with printing the error and returning None,
                     // allowing the game to run even if some textures couldn't load, but also
