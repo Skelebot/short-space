@@ -46,7 +46,7 @@ impl Graphics {
             &mut self.device,
             &mut self.queue,
             &mut self.sc_desc,
-            &world,
+            world,
             &resources,
         )?;
 

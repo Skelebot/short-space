@@ -3,28 +3,20 @@ extern crate nalgebra;
 use nalgebra as na;
 
 pub struct Camera {
-    pub position: na::Isometry3<f32>,
     projection: na::Perspective3<f32>,
 }
 impl Camera {
     pub fn new(aspect: f32, fov: f32, znear: f32, zfar: f32) -> Self {
-        let pos = na::Isometry3::from_parts(
-            na::Translation3::from(na::Vector3::repeat(0.0)),
-            na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 0.0),
-        );
         let proj = na::Perspective3::new(aspect, fov, znear, zfar);
-        Camera {
-            position: pos,
-            projection: proj,
-        }
+        Camera { projection: proj }
     }
 
     pub fn update_aspect(&mut self, aspect: f32) {
         self.projection.set_aspect(aspect);
     }
 
-    pub fn get_view_matrix(&self) -> na::Matrix4<f32> {
-        let eye = self.position.translation.vector.into();
+    pub fn get_view_matrix(&self, position: &na::Isometry3<f32>) -> na::Matrix4<f32> {
+        let eye = position.translation.vector.into();
 
         // Important note: those axes are colinear
         // with their world-space equivalents only when the camera hasn't
@@ -35,10 +27,10 @@ impl Camera {
 
         // The target can be an arbitrary point in the direction the camera is pointing
         // y axis = front
-        let target = self.position * na::Point3::new(0.0, 1.0, 0.0);
+        let target = position * na::Point3::new(0.0, 1.0, 0.0);
 
         // z axis = up
-        let up = self.position * na::Vector3::new(0.0, 0.0, 1.0);
+        let up = position * na::Vector3::new(0.0, 0.0, 1.0);
 
         na::Matrix::look_at_rh(&eye, &target, &up)
     }
@@ -47,7 +39,7 @@ impl Camera {
         self.projection.into_inner()
     }
 
-    pub fn get_view_projection_matrix(&self) -> na::Matrix4<f32> {
-        self.projection.into_inner() * self.get_view_matrix()
+    pub fn get_view_projection_matrix(&self, position: &na::Isometry3<f32>) -> na::Matrix4<f32> {
+        self.projection.into_inner() * self.get_view_matrix(position)
     }
 }

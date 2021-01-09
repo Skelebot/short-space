@@ -30,13 +30,13 @@ log = "0.4.11"
 bytemuck = { version = "1.4.1", features = ["derive"] }
 
 # Misc
-#flatbuffers = "0.6.0"
-floating-duration = "0.1.2"
-cgmath = "0.17.0"
+serde = "1.0.118"
+const_format = "0.2.11"
+ron = "0.6.4"
 
 [dependencies.legion]
 version = "0.3.1"
-features = ["extended-tuple-impls"]
+#features = ["extended-tuple-impls"]
 
 [dependencies.wavefront_obj]
 git = "https://github.com/Skelebot/wavefront_obj"
@@ -44,3 +44,11 @@ git = "https://github.com/Skelebot/wavefront_obj"
 [build-dependencies]
 # Used for copying the assets dir to the target dir for testing
 walkdir = "2.3.1"
+
+[dev-dependencies]
+# For relative-comparing floats in tests
+approx = "0.4.0"
+
+# `image` is terribly slow in debug mode, so override it to release
+[profile.dev.package.image] 
+opt-level = 2

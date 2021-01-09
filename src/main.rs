@@ -1,37 +1,34 @@
-//#[macro_use]
-//extern crate render_gl_derive;
-
 extern crate nalgebra as na;
 extern crate ncollide3d as nc;
 
 #[macro_use]
 extern crate log;
 
-pub mod graphics;
+mod graphics;
 
-use graphics::{Graphics, RenderMesh};
-
-mod asset_loader;
-mod game_state;
+mod assets;
 mod input;
 mod physics;
 mod player;
-mod settings;
-mod time;
+mod spacetime;
+mod state;
 
 #[cfg(test)]
 mod tests;
 
+use assets::settings::{GameSettings, PhysicsSettings};
+use graphics::{Graphics, RenderMesh};
+use spacetime::{Child, Position};
+
 use anyhow::Result;
 use legion::{Resources, Schedule, World};
-use settings::GameSettings;
 
-use game_state::GameState;
+use state::GameState;
 
 use futures::executor::block_on;
 use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event::{DeviceEvent, Event, WindowEvent},
+    event_loop::ControlFlow,
 };
 
 fn main() -> Result<(), anyhow::Error> {
@@ -44,33 +41,24 @@ fn main() -> Result<(), anyhow::Error> {
     let mut resources = Resources::default();
 
     // AssetLoader is already needed to load shaders
-    let asset_loader =
-        asset_loader::AssetLoader::from_relative_exe_path(std::path::Path::new("assets"))?;
-    resources.insert(asset_loader);
+    let loader = assets::AssetLoader::from_relative_exe_path(std::path::Path::new("assets"))?;
+    resources.insert(loader);
 
+    // Set up graphics (window, wgpu)
     let (mut graphics, event_loop) = block_on(graphics::setup(&mut world, &mut resources))?;
 
-    setup_resources(&mut world, &mut resources, &graphics.window);
+    setup_resources(&mut world, &mut resources)?;
     setup_scene(&mut world, &mut resources, &mut graphics)?;
 
-    block_on(run(graphics, event_loop, world, resources))?;
-
-    Ok(())
-}
-
-async fn run(
-    mut graphics: Graphics,
-    event_loop: EventLoop<()>,
-    mut world: legion::World,
-    mut resources: legion::Resources,
-) -> Result<()> {
     // Create the schedule that will be executed every frame
     let mut schedule = Schedule::builder()
-        .add_thread_local(time::update_time_system())
-        .add_thread_local(player::player_movement_system())
+        .add_system(physics::step_system())
+        .add_system(player::player_movement_system())
+        .add_system(physics::lerp_system())
+        .add_system(physics::children_update_system())
         .build();
 
-    debug!("Running the event loop");
+    info!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
         {
             *control_flow = ControlFlow::Poll;
@@ -86,6 +74,13 @@ async fn run(
             }
         }
         match event {
+            Event::NewEvents(_) => {
+                // Reset input to values before any events get handled
+                // (for example zero the mouse delta)
+                input::prepare(&mut resources);
+                // Update frame timings
+                spacetime::prepare(&mut resources);
+            }
             // If the user closed the window, exit
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -101,64 +96,60 @@ async fn run(
             // Handle user input
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::KeyboardInput { input, .. } => {
-                    input::handle_keyboard_input(input, &mut world, &mut resources)
+                    input::handle_keyboard_input(input, &mut resources)
                 }
-                WindowEvent::CursorMoved { position, .. } => input::handle_cursor_moved(
-                    position,
-                    &graphics.window,
-                    &mut world,
-                    &mut resources,
-                ),
                 _ => {}
             },
+            Event::DeviceEvent {
+                //device_id,
+                event,
+                ..
+            } => match event {
+                DeviceEvent::MouseMotion { delta } => {
+                    input::handle_mouse_movement(delta, &mut resources)
+                }
+                _ => (),
+            },
+            // Event::Suspended
+            // Event::Resumed
             // Emitted when all of the event loop's input events have been processed and redraw processing is about to begin.
-            // Normally, we would use Event::RedrawRequested for rendering, but we can also just render here, because it's a game
-            // that has to render continuously either way.
             Event::MainEventsCleared => {
                 // Run all systems
                 schedule.execute(&mut world, &mut resources);
+                // Request rendering
+                graphics.window.request_redraw();
+            }
+            // Render the frame
+            Event::RedrawRequested(_) => {
                 // Render
                 graphics.render(&mut world, &mut resources).unwrap();
             }
-            // We already render frames in MainEventsCleared
-            Event::RedrawRequested(_) => {}
             _ => {}
         }
     })
 }
 
 // TODO: Create a loading state and add a loding screen
-fn setup_resources(_world: &mut World, resources: &mut Resources, window: &winit::window::Window) {
-    // Set up the camera
-    let size = window.inner_size();
-    let aspect = size.width as f32 / size.height as f32;
-    let camera = crate::graphics::Camera::new(aspect, 45_f32.to_radians(), 0.001, 1000.0);
-    resources.insert(camera);
+fn setup_resources(world: &mut World, resources: &mut Resources) -> Result<()> {
+    physics::setup(world, resources)?;
 
-    // Create settings for the game
-    // TODO: Read settings from a file
-    let settings: GameSettings = Default::default();
+    let settings = resources
+        .get::<assets::AssetLoader>()
+        .unwrap()
+        .load::<GameSettings>("settings/game.ron")?;
 
-    // Create the asset loader
-    //let asset_loader = AssetLoader::from_relative_exe_path(Path::new("assets")).unwrap();
-
-    // Create physics settings
-    let phys_settings = physics::PhysicsSettings::default();
-
-    // Create the game state tracking Resource
     let game_state = GameState::new();
 
     let input_state = input::InputState::default();
 
-    // Create the frame-delta tracking Resource
-    let time = time::Time::new();
+    let time = spacetime::Time::default();
 
-    // Insert the resources
     resources.insert(settings);
     resources.insert(input_state);
-    resources.insert(phys_settings);
     resources.insert(game_state);
     resources.insert(time);
+
+    Ok(())
 }
 
 // TODO: Create a loading state and add a loding screen
@@ -174,7 +165,7 @@ fn setup_scene(
 
     // Load models from an obj file and add them into the world
     {
-        let loader = resources.get::<asset_loader::AssetLoader>().unwrap();
+        let loader = resources.get::<assets::AssetLoader>().unwrap();
 
         loader
             .load_obj_set("models/map.obj")?
@@ -188,7 +179,7 @@ fn setup_scene(
                 )
             })
             .for_each(|render_mesh| {
-                let pos = physics::Position::identity();
+                let pos: Position = na::Isometry3::translation(0.0, 0.0, 0.0).into();
                 world.push((pos, render_mesh));
             });
 
@@ -205,15 +196,19 @@ fn setup_scene(
                 &mut encoder,
             )
         };
-        world.push((physics::Position::translation(2.0, 0.0, 0.0), player_mesh));
+        world.push((
+            Position::from(na::Isometry3::translation(2.0, 0.0, 0.0)),
+            player_mesh,
+        ));
     }
     graphics.queue.submit(Some(encoder.finish()));
 
     // Create the player
-    let pos = physics::Position::from_parts(
+    let pos: Position = na::Isometry3::from_parts(
         na::Translation3::new(0.0, -2.0, 0.1),
         na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), -90.0_f32.to_radians()),
-    );
+    )
+    .into();
     use nc::shape::{Capsule, ShapeHandle};
     let collider = physics::Collider::from(
         // TODO: Load from settings
@@ -226,11 +221,26 @@ fn setup_scene(
         ground_entity: None,
         flags: 0,
     };
+
+    // Set up the camera
+    let size = graphics.window.inner_size();
+    let aspect = size.width as f32 / size.height as f32;
+    let camera = crate::graphics::Camera::new(aspect, 45_f32.to_radians(), 0.001, 1000.0);
+    let atlas_cam = world.push((pos, camera));
+
     // Add the player to the world and keep it's Entity (an ID)
     // so we can add it to a Resource to track the single main player
     let atlas = world.push((pos, collider, vel, player));
 
-    let atlas = player::Atlas { entity: atlas };
+    world.entry(atlas_cam).unwrap().add_component(Child {
+        parent: atlas,
+        offset: na::Isometry3::translation(0.0, 0.0, 0.0).into(),
+    });
+
+    let atlas = player::Atlas {
+        player: atlas,
+        camera: atlas_cam,
+    };
     resources.insert(atlas);
 
     Ok(())

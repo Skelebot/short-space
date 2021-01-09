@@ -1,0 +1,11 @@
+GameSettings (
+    noclip_speed: 30.0,
+    mouse_sensitivity: 1.0,
+    sprint_multiplier: 2.0,
+    vsync: true,
+    window_width: 800,
+    window_height: 600,
+
+    player_height: 2.0,
+    player_radius: 0.40,
+)

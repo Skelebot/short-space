@@ -1,6 +1,7 @@
 extern crate image;
 
 pub mod data;
+pub mod settings;
 
 use anyhow::{anyhow, format_err, Error, Result};
 use data::MaterialData;
@@ -15,6 +16,12 @@ use wobj::{
 };
 
 use self::data::MeshPartData;
+
+macro_rules! wrap_err {
+    ($e:ident, $contx:expr, $contx_args:expr) => {
+        anyhow!($e).context(format_err!($contx, $contx_args))
+    };
+}
 
 pub struct AssetLoader {
     root_path: PathBuf,
@@ -33,11 +40,24 @@ impl AssetLoader {
         })
     }
 
+    // We could do `P: AsRef<Path>` here, but then every call would look like this:
+    // asset_loader.load<Thing, &str>("file.ext")
+    // It will be possible to remove the extra parameter when https://github.com/rust-lang/rust/issues/63066
+    // is resolved (see second-last checkbox)
+    pub fn load<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
+        let str = self.load_str(self.root_path.join(&path))?;
+        ron::from_str(str.as_str())
+            .map_err(|e| wrap_err!(e, "Error while deserializing file {:?}: ", path))
+    }
+
+    pub fn load_str(&self, path: impl AsRef<Path>) -> Result<String> {
+        std::fs::read_to_string(&path)
+            .map_err(|e| wrap_err!(e, "File not found: {:?}", path.as_ref()))
+    }
+
     pub fn load_texture(&self, path: impl AsRef<Path>) -> Result<image::DynamicImage> {
-        let img = image::open(self.root_path.join(&path)).map_err(|err| {
-            anyhow!(err).context(format_err!("Failed to open image: {:?}", path.as_ref()))
-        })?;
-        Ok(img)
+        image::open(self.root_path.join(&path))
+            .map_err(|e| wrap_err!(e, "Failed to open image: {:?}", path.as_ref()))
     }
 
     fn load_map_img(&self, path: impl AsRef<Path>) -> Result<image::RgbaImage> {
@@ -54,20 +74,17 @@ impl AssetLoader {
     }
 
     pub fn load_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>> {
-        std::fs::read(self.root_path.join(&path)).map_err(|s| {
-            anyhow!(s).context(format_err!(
-                "Could not find file: {:?}",
-                self.root_path.join(&path)
-            ))
-        })
+        std::fs::read(self.root_path.join(&path))
+            .map_err(|e| wrap_err!(e, "Could not find file: {:?}", self.root_path.join(&path)))
     }
 
     pub fn load_material_set(&self, path: impl AsRef<Path>) -> Result<MtlSet> {
-        wobj::mtl::parse(&std::fs::read_to_string(self.root_path.join(&path))?).map_err(|err| {
-            anyhow!(err).context(format_err!(
+        wobj::mtl::parse(&std::fs::read_to_string(self.root_path.join(&path))?).map_err(|e| {
+            wrap_err!(
+                e,
                 "Error while parsing material set from file: {:?}",
                 self.root_path.join(path)
-            ))
+            )
         })
     }
 
@@ -75,14 +92,15 @@ impl AssetLoader {
         let obj_path = self.root_path.join(&path);
         let obj_parent = obj_path.parent().unwrap();
         let obj_file = std::fs::read_to_string(&obj_path)
-            .map_err(|err| anyhow!(err).context(format_err!("Mesh not found: {:?}", &obj_path)))?;
+            .map_err(|e| wrap_err!(e, "Mesh not found: {:?}", &obj_path))?;
 
         // A set of objects; a single wavefront OBJ file can contain multiple objects
-        let object_set = wobj::obj::parse(&obj_file.as_str()).map_err(|err| {
-            anyhow!(err).context(format_err!(
+        let object_set = wobj::obj::parse(&obj_file.as_str()).map_err(|e| {
+            wrap_err!(
+                e,
                 "Error while parsing object set from file: {:?}",
                 obj_path
-            ))
+            )
         })?;
 
         // The set of materials for objects; if None, the objects do not have materials

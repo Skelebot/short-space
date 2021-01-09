@@ -1,6 +1,6 @@
 use wgpu::util::DeviceExt;
 
-use crate::{asset_loader::data::*, graphics::Graphics};
+use crate::{assets::data::*, graphics::Graphics};
 
 use super::{material::*, MeshPass, MeshUniforms};
 
@@ -32,8 +32,6 @@ impl RenderMeshPart {
             (false, true, true) => panic!("Unsupported shading: unlit textured emissive"),
             (false, false, true) => panic!("Unsupported shading: unlit untextured emissive"),
         };
-
-        log::debug!("Creating mesh part with shading: {:?}", shading);
 
         let material = MeshMaterial::new(
             shading,

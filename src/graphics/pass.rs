@@ -7,7 +7,7 @@ pub trait Pass {
         device: &mut wgpu::Device,
         queue: &mut wgpu::Queue,
         sc_desc: &mut wgpu::SwapChainDescriptor,
-        _world: &World,
+        _world: &mut World,
         _resources: &Resources,
     ) -> Result<()>;
     fn render(

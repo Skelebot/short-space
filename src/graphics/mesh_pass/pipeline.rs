@@ -1,16 +1,23 @@
-use crate::asset_loader::AssetLoader;
+use crate::assets::AssetLoader;
+use const_format::concatcp;
 
-use super::{material::MaterialFactors, Vertex};
+use super::{
+    material::{MaterialFactors, MaterialShading},
+    Vertex,
+};
 
-// TODO: Make this and super::MaterialShading the same enum
-pub enum PipelineType {
-    Untextured,
-    UntexturedUnlit,
-    Textured,
-    TexturedUnlit,
-    TexturedEmissive,
-    UntexturedEmissive,
-}
+const COMPILED_SHADERS_DIR: &str = "shaders/compiled/";
+const COMPILED_VERTEX_SHADER_EXT: &str = ".vert.spv";
+const COMPILED_FRAGMENT_SHADER_EXT: &str = ".frag.spv";
+
+const MESH_VERTEX_SHADER_NAME: &str = "mesh";
+
+const UNTEXTURED_SHADER_NAME: &str = "untex";
+const UNTEXTURED_UNLIT_SHADER_NAME: &str = "untex_unlit";
+const TEXTURED_SHADER_NAME: &str = "tex";
+const TEXTURED_UNLIT_SHADER_NAME: &str = "tex_unlit";
+const UNTEXTURED_EMISSIVE_SHADER_NAME: &str = "emissive_untex";
+const TEXTURED_EMISSIVE_SHADER_NAME: &str = "emissive";
 
 macro_rules! bind_group_layout_entries {
     (untextured) => {
@@ -101,7 +108,6 @@ impl MeshPipeline {
                 entry_point: "main",
             }),
             rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-                // TODO: review and customize
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::None,
                 ..Default::default()
@@ -132,8 +138,8 @@ impl MeshPipeline {
         }
     }
 
-    pub fn pipeline_type(
-        ty: PipelineType,
+    pub fn shaded(
+        ty: MaterialShading,
         device: &mut wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
         global_bind_group_layout: &wgpu::BindGroupLayout,
@@ -142,38 +148,61 @@ impl MeshPipeline {
     ) -> Self {
         let vs_module = device.create_shader_module(wgpu::util::make_spirv(
             &asset_loader
-                .load_bytes("shaders/compiled/mesh.vert.spv")
+                .load_bytes(concatcp!(
+                    COMPILED_SHADERS_DIR,
+                    MESH_VERTEX_SHADER_NAME,
+                    COMPILED_VERTEX_SHADER_EXT
+                ))
                 .unwrap(),
         ));
+        use MaterialShading::*;
         let fs_module = device.create_shader_module(wgpu::util::make_spirv(
             &asset_loader
                 .load_bytes(match ty {
-                    // TODO: Rename fragment shaders to *.frag.spv instead of *_frag.spv
-                    PipelineType::Untextured => "shaders/compiled/untex.frag.spv",
-                    PipelineType::UntexturedUnlit => "shaders/compiled/untex_unlit.frag.spv",
-                    PipelineType::TexturedUnlit => "shaders/compiled/tex_unlit.frag.spv",
-                    PipelineType::Textured => "shaders/compiled/tex.frag.spv",
-                    PipelineType::TexturedEmissive => "shaders/compiled/emissive.frag.spv",
-                    PipelineType::UntexturedEmissive => "shaders/compiled/emissive_untex.frag.spv",
+                    Untextured => concatcp!(
+                        COMPILED_SHADERS_DIR,
+                        UNTEXTURED_SHADER_NAME,
+                        COMPILED_FRAGMENT_SHADER_EXT
+                    ),
+                    UntexturedUnlit => concatcp!(
+                        COMPILED_SHADERS_DIR,
+                        UNTEXTURED_UNLIT_SHADER_NAME,
+                        COMPILED_FRAGMENT_SHADER_EXT
+                    ),
+                    Textured => concatcp!(
+                        COMPILED_SHADERS_DIR,
+                        TEXTURED_SHADER_NAME,
+                        COMPILED_FRAGMENT_SHADER_EXT
+                    ),
+                    TexturedUnlit => concatcp!(
+                        COMPILED_SHADERS_DIR,
+                        TEXTURED_UNLIT_SHADER_NAME,
+                        COMPILED_FRAGMENT_SHADER_EXT
+                    ),
+                    TexturedEmissive => concatcp!(
+                        COMPILED_SHADERS_DIR,
+                        TEXTURED_EMISSIVE_SHADER_NAME,
+                        COMPILED_FRAGMENT_SHADER_EXT
+                    ),
+                    UntexturedEmissive => concatcp!(
+                        COMPILED_SHADERS_DIR,
+                        UNTEXTURED_EMISSIVE_SHADER_NAME,
+                        COMPILED_FRAGMENT_SHADER_EXT
+                    ),
                 })
                 .unwrap(),
         ));
 
-        use PipelineType::*;
-        // TODO: Unify MaterialShading and PipelineType enums, and use .is_textured() here
-        let part_bind_group_layout = match ty {
-            Untextured | UntexturedUnlit | UntexturedEmissive => {
-                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: None,
-                    entries: bind_group_layout_entries!(untextured),
-                })
-            }
-            Textured | TexturedEmissive | TexturedUnlit => {
-                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: None,
-                    entries: bind_group_layout_entries!(textured),
-                })
-            }
+        let part_bind_group_layout = if ty.is_textured() {
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: bind_group_layout_entries!(textured),
+            })
+        } else {
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: bind_group_layout_entries!(untextured),
+            })
         };
 
         MeshPipeline::new(

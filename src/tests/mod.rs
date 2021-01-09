@@ -11,7 +11,7 @@ fn camera_test() {
     let znear = 0.1;
     let zfar = 100.0;
 
-    let mut camera = graphics::Camera::new(aspect, fov, znear, zfar);
+    let camera = graphics::Camera::new(aspect, fov, znear, zfar);
 
     let cam_proj = camera.get_projection_matrix();
     let proj = na::Perspective3::new(aspect, fov, znear, zfar);
@@ -22,11 +22,8 @@ fn camera_test() {
         na::Translation3::from(na::Vector3::new(1.0, 3.0, 2.0)),
         na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 90.0_f32.to_radians()),
     );
-    camera.position = pos;
 
-    assert_eq!(camera.position, pos);
-
-    let cam_view = camera.get_view_matrix();
+    let cam_view = camera.get_view_matrix(&pos);
     let view = {
         let position: na::Point3<f32> = pos.translation.vector.into();
         let target = pos * na::Point3::new(0.0, 1.0, 0.0);
@@ -41,10 +38,7 @@ fn camera_test() {
 // Input
 //------------------------------
 
-// Rust_analyzer complains about these imports being unused
-#[allow(unused_imports)]
 use crate::input::{Action, Axis, InputState};
-#[allow(unused_imports)]
 use winit::event::{ElementState::*, VirtualKeyCode::*};
 #[test]
 fn test_keypress_simple() {

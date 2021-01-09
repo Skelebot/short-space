@@ -8,7 +8,6 @@ pub async fn setup(
     world: &mut World,
     resources: &mut Resources,
 ) -> Result<(Graphics, EventLoop<()>)> {
-    let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let event_loop = EventLoop::new();
     let window = Window::new(&event_loop)?;
 
@@ -60,13 +59,16 @@ pub async fn setup(
             anyhow::anyhow!(err).context(anyhow::Error::msg("Failed to create the graphics device"))
         })?;
 
+    let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let swap_chain_desc = wgpu::SwapChainDescriptor {
         usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
         format: swapchain_format,
         width: size.width,
         height: size.height,
         // Wait for vsync, but do not cap framerate
-        present_mode: wgpu::PresentMode::Mailbox,
+        //present_mode: wgpu::PresentMode::Mailbox,
+        // Wait for vsync AND cap framerate
+        present_mode: wgpu::PresentMode::Fifo,
     };
 
     let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);

@@ -1,17 +1,15 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
+use spacetime::PhysicsTimer;
 
-use crate::{asset_loader::AssetLoader, graphics::Pass};
+use crate::{assets::AssetLoader, graphics::Pass, player::Atlas, spacetime};
 use wgpu::util::DeviceExt;
 
 use crate::graphics::Camera;
 use crate::physics;
 
-use legion::{IntoQuery, Resources, World};
+use legion::{Entity, IntoQuery, Resources, World};
 
-use super::{
-    material::MaterialShading, pipeline::MeshPipeline, pipeline::PipelineType, GlobalUniforms,
-    RenderMesh,
-};
+use super::{material::MaterialShading, pipeline::MeshPipeline, GlobalUniforms, RenderMesh};
 
 pub struct MeshPassPipelines {
     pub untextured: MeshPipeline,
@@ -61,9 +59,6 @@ impl MeshPass {
                 ],
             });
 
-        log::debug!("Initializing the shadow pass");
-
-        log::debug!("Initializing the mesh pass");
         // Set 0
         let global_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -129,48 +124,48 @@ impl MeshPass {
                 .get::<AssetLoader>()
                 .expect("Asset loader not found, cannot load shaders");
             MeshPassPipelines {
-                untextured: MeshPipeline::pipeline_type(
-                    PipelineType::Untextured,
+                untextured: MeshPipeline::shaded(
+                    MaterialShading::Untextured,
                     device,
                     sc_desc,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
                 ),
-                untextured_unlit: MeshPipeline::pipeline_type(
-                    PipelineType::UntexturedUnlit,
+                untextured_unlit: MeshPipeline::shaded(
+                    MaterialShading::UntexturedUnlit,
                     device,
                     sc_desc,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
                 ),
-                textured: MeshPipeline::pipeline_type(
-                    PipelineType::Textured,
+                textured: MeshPipeline::shaded(
+                    MaterialShading::Textured,
                     device,
                     sc_desc,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
                 ),
-                textured_unlit: MeshPipeline::pipeline_type(
-                    PipelineType::TexturedUnlit,
+                textured_unlit: MeshPipeline::shaded(
+                    MaterialShading::TexturedUnlit,
                     device,
                     sc_desc,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
                 ),
-                textured_emissive: MeshPipeline::pipeline_type(
-                    PipelineType::TexturedEmissive,
+                textured_emissive: MeshPipeline::shaded(
+                    MaterialShading::TexturedEmissive,
                     device,
                     sc_desc,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
                 ),
-                untextured_emissive: MeshPipeline::pipeline_type(
-                    PipelineType::UntexturedEmissive,
+                untextured_emissive: MeshPipeline::shaded(
+                    MaterialShading::UntexturedEmissive,
                     device,
                     sc_desc,
                     &global_bind_group_layout,
@@ -198,10 +193,10 @@ impl Pass for MeshPass {
     fn resize(
         &mut self,
         device: &mut wgpu::Device,
-        queue: &mut wgpu::Queue,
+        _queue: &mut wgpu::Queue,
         sc_desc: &mut wgpu::SwapChainDescriptor,
-        _world: &legion::World,
-        resources: &legion::Resources,
+        world: &mut legion::World,
+        _resources: &legion::Resources,
     ) -> Result<()> {
         self.depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
@@ -220,11 +215,11 @@ impl Pass for MeshPass {
             .depth_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Update the camera
-        let mut camera = resources.get_mut::<Camera>().unwrap();
-        camera.update_aspect(sc_desc.width as f32 / sc_desc.height as f32);
-        let proj_view: [[f32; 4]; 4] = camera.get_view_projection_matrix().into();
-        queue.write_buffer(&self.global_uniform_buf, 0, bytemuck::bytes_of(&proj_view));
+        // Update every camera's aspect ratio
+        let mut query = <&mut Camera>::query();
+        query.for_each_mut(world, |camera| {
+            camera.update_aspect(sc_desc.width as f32 / sc_desc.height as f32);
+        });
         Ok(())
     }
     fn render(
@@ -237,28 +232,40 @@ impl Pass for MeshPass {
         world: &legion::World,
         resources: &legion::Resources,
     ) -> Result<()> {
-        // Upload global uniforms
-        let camera = resources
-            .get::<Camera>()
-            .ok_or_else(|| Error::msg("Couldn't find the Camera"))?;
-        let view_proj = camera.get_view_projection_matrix();
-        let global_uniforms = GlobalUniforms {
-            view_proj: view_proj.into(),
-            camera_pos: camera.position.translation.vector.into(),
+        let lerp = {
+            let physics_timer = resources.get::<PhysicsTimer>().unwrap();
+            physics_timer.lerp() as f32
         };
-        queue.write_buffer(
-            &self.global_uniform_buf,
-            0,
-            bytemuck::bytes_of(&global_uniforms),
-        );
+
+        // Upload global uniforms
+        {
+            let camera_entity = resources.get::<Atlas>().unwrap().camera;
+
+            let mut cam_query = <(&spacetime::Position, &Camera)>::query();
+            let (position, camera) = cam_query.get(world, camera_entity).unwrap();
+
+            let cam_pos = position.current(lerp);
+
+            let view_proj = camera.get_view_projection_matrix(&cam_pos);
+            let global_uniforms = GlobalUniforms {
+                view_proj: view_proj.into(),
+                camera_pos: cam_pos.translation.vector.into(),
+            };
+            queue.write_buffer(
+                &self.global_uniform_buf,
+                0,
+                bytemuck::bytes_of(&global_uniforms),
+            );
+        }
 
         // Select every entity with a RenderMesh, position and maybe a scale
         // TODO: update buffers only if the position or scale have been changed (maybe_changed filter)
-        let mut mesh_query = <(&RenderMesh, &physics::Position, Option<&physics::Scale>)>::query();
+        let mut mesh_query =
+            <(&RenderMesh, &spacetime::Position, Option<&spacetime::Scale>)>::query();
 
         // Upload mesh model transform matrices to every model's buffer
         for (rmesh, position, maybe_scale) in mesh_query.iter(world) {
-            let mut transform = position.to_homogeneous();
+            let mut transform = position.current(lerp).to_homogeneous();
             if let Some(scale) = maybe_scale {
                 transform = transform.prepend_nonuniform_scaling(scale);
             }

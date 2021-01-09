@@ -36,3 +36,39 @@ impl Default for MaterialData {
         }
     }
 }
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum Rotation {
+    Euler(f32, f32, f32),
+    Axis(Axis, f32),
+    Quaternion(f32, f32, f32, f32),
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Position {
+    x: f32,
+    y: f32,
+    z: f32,
+    rotation: Option<Rotation>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Model {
+    pos: Position,
+    obj: String,
+    parent: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Scene {
+    objects: Vec<Model>,
+}

@@ -1,6 +1,8 @@
 #![allow(dead_code)]
+#[derive(Debug)]
 pub struct Atlas {
-    pub entity: Entity,
+    pub player: Entity,
+    pub camera: Entity,
 }
 #[derive(PartialEq, Eq, Debug)]
 pub enum PlayerState {
@@ -23,95 +25,68 @@ pub struct Player {
     pub flags: u16,
 }
 
-use crate::graphics::Camera;
+use crate::assets::settings::PhysicsSettings;
 use crate::input::{self, InputState};
 use crate::physics::*;
-use crate::{time::Time, GameSettings, GameState};
+use crate::{
+    spacetime::{PhysicsTimer, Position, Time},
+    GameSettings, GameState,
+};
 use legion::{system, world::SubWorld, Entity, IntoQuery};
 
-#[system(for_each)]
-#[read_component(Collider)]
+#[system]
 #[read_component(Entity)]
+#[read_component(Collider)]
+#[write_component(Player)]
+#[write_component(Position)]
+#[write_component(Velocity)]
 pub fn player_movement(
+    #[resource] p_timer: &mut PhysicsTimer,
+    #[resource] physics_settings: &PhysicsSettings,
     #[resource] atlas: &Atlas,
     #[resource] input_state: &InputState,
     #[resource] game_state: &GameState,
-    #[resource] _physics_settings: &PhysicsSettings,
     #[resource] game_settings: &GameSettings,
-    #[resource] camera: &mut Camera,
     #[resource] time: &mut Time,
-    entity: &Entity,
-    player: &mut Player,
-    position: &mut Position,
-    velocity: &mut Velocity,
-    //collider: &Collider,
     world: &mut SubWorld,
 ) {
     if game_state.paused {
         return;
     }
-    // Get the all components belonging to the player-controlled player (here called Atlas)
-    // For now, we only care about the Atlas player
-    if *entity != atlas.entity {
-        return;
+    {
+        let mut player_query = <(&mut Player, &mut Position, &mut Velocity)>::query();
+        let (mut player_w, world) = world.split_for_query(&player_query);
+        let (player, position, velocity) =
+            player_query.get_mut(&mut player_w, atlas.player).unwrap();
+
+        // Rotate the player
+        {
+            // Get the all components belonging to the player-controlled player (here called Atlas)
+            let offset =
+                input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta as f32;
+
+            // TODO: Append rotations directly instead of creating new quaternions
+            let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), offset.x);
+            let xrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::x_axis(), offset.y);
+
+            // Note: By changing the order of multiplications here, we can make the camera
+            // do all rotations around it's own relative axes (including the z axis),
+            // which would make it a full 3D-space camera. This actually isn't good
+            // in FPS games, where the player never has to "roll" the camera
+            // (rotate around relative x) To fix this, we rotate around the z axis last,
+            // so it's always the world's absolute z axis.
+            // To make a space-type camera, the z rotation should be performed first.
+            // Note 2: When multiplying transformations, the order is actually done backwards
+            // (xrot is the first rotation performed, because it's the last one in the multiplication)
+
+            position.future_mut().rotation = zrot * position.future_mut().rotation * xrot
+        }
     }
 
-    player.ground_entity = None;
-    // Reduce all timers connected with moving
-
-    // Categorize position
-    {
-        // See if the player is standing on something solid
-        let mut test_vec = position.translation.vector;
-
-        const GROUND_TEST_OFFSET: f32 = 6.20;
-        test_vec.z -= GROUND_TEST_OFFSET;
-
-        const JUMP_VELOCITY: f32 = 0.05;
-
-        let _moving_up = velocity.linear.z > 0.0;
-        let moving_up_rapidly = velocity.linear.z > JUMP_VELOCITY;
-        // Was standing on ground, but now am not
-        if moving_up_rapidly {
-            player.ground_entity = None;
-        } else {
-            // Try and move down
-            // Try to touch ground
-            let ray = nc::query::Ray::new(position.translation.vector.into(), test_vec.normalize());
-            // TODO: Intersect the ray with everything the player can stand on; not only the map entity
-            let mut query = <(&Entity, &Collider)>::query();
-            for (entity, collider) in query.iter(world) {
-                use nc::query::RayCast;
-                let intersection = collider.handle.toi_and_normal_with_ray(
-                    &na::Isometry3::identity(),
-                    &ray,
-                    GROUND_TEST_OFFSET,
-                    // This is the solid flag. If the ray is inside a shape and it's true, then the TOI will be set to 0
-                    // and normal will be undefined. If the ray is inside a shape and it's false, then it will act as if
-                    // the shape is hollow, calculating the normal and toi to it's outer wall.
-                    // REVIEW: Solid ray traces are *much* faster than non-solid, this is set to false to make development
-                    // easier. Consider changing it to true
-                    false,
-                );
-                debug!("hit: {}", intersection.is_some());
-                // Was on ground, but now suddenly i'm not
-                if let Some(hit) = intersection {
-                    // If we hit a steep plane, we are not on ground
-                    if hit.normal.z < 0.7 {
-                        // TODO: Test four sub-boxes, to see if any of them would have found shallower slope we could stand on (TryTouchGroundInQuadrants)
-                    } else {
-                        player.ground_entity = Some(*entity);
-                    }
-                }
-            }
-        }
-    } // Categorize position
-
-    // TODO: Check for ducking
-    // check_duck();
+    let mut player_query = <(&mut Player, &mut Position, &mut Velocity)>::query();
+    let (player, position, velocity) = player_query.get_mut(world, atlas.player).unwrap();
 
     // Finally, handle movement modes
-
     match player.state {
         // Clear flags etc
 
@@ -119,7 +94,8 @@ pub fn player_movement(
         // TODO: Make corpses fly
         // In Source, Dead isn't even an option (REVIEW: Remove?)
         PlayerState::Dead => {}
-        PlayerState::Spectator => {
+        PlayerState::Spectator => {}
+        /*PlayerState::Spectator => {
             //check_duck(input_state, player);
             //apply_friction(&player, velocity, time);
             //  wishvel
@@ -133,44 +109,18 @@ pub fn player_movement(
 
             let wishdir = wishvel;
             let wishspeed = wishdir.norm();
-            //  PM_Accelerate();
-            // q2 style
             let currentspeed = na::Vector3::dot(&velocity.linear, &wishdir);
             let addspeed = wishspeed - currentspeed;
+            let accel = 10.0;
             if addspeed > 0.0 {
-                let accelspeed = ACCELERATE * time.delta * wishspeed;
+                let accelspeed = accel * time.delta as f32 * wishspeed;
                 velocity.linear += wishdir * accelspeed;
             }
             position.translation.vector += velocity.linear;
-            camera.position = *position;
-            // PM_StepSlideMove();
-
-            // PM_DropTimers();
-            // return;
-        }
+            //return;
+        }*/
         PlayerState::Noclip => {
-            //let fmove = input_state.fwdmove * game_settings.noclip_speed;
-            //let smove = input_state.sidemove * game_settings.noclip_speed;
-
-            //let forward = (position.rotation * na::Vector3::x()).normalize() * fmove;
-            //// TODO: negate?
-            //let side = (position.rotation * na::Vector3::y()).normalize() * smove;
-
-            //let mut wishvel = forward + side;
-            //wishvel.z += input_state.upmove * game_settings.noclip_speed;
-
-            //let wishdir = wishvel.clone();
-            //let mut wishspeed = wishdir.norm();
-
-            //// Clamp to max speed
-            //if wishspeed > MAXSPEED {
-            //    // Scale the velocity
-            //    wishvel *= MAXSPEED/wishspeed;
-            //    wishspeed = MAXSPEED;
-            //}
-
             // Accelerate
-            // This is where the bunnyhop bug occurs
             {
                 let wishdir = na::Vector3::new(
                     input_state.get_axis_state(&input::SIDE_AXIS),
@@ -195,8 +145,7 @@ pub fn player_movement(
 
                 // Finally, adjust velocity
                 let accelspeed = 3.0;
-                position.rotation = camera.position.rotation;
-                velocity.linear = position.rotation * wishdir * accelspeed;
+                velocity.linear = position.future_mut().rotation * wishdir * accelspeed;
                 if input_state.is_action_pressed(&input::SPRINT_ACTION) {
                     velocity.linear *= game_settings.sprint_multiplier;
                 }
@@ -205,10 +154,7 @@ pub fn player_movement(
             // Bleeding off speed(?)
 
             // Just move
-            position.translation.vector += velocity.linear * time.delta;
-
-            // Sync camera pos to player pos
-            camera.position = *position;
+            position.future_mut().translation.vector += velocity.linear * time.delta as f32;
 
             // PM_NoclipMove();
             // PM_DropTimers();
@@ -238,71 +184,3 @@ pub fn player_movement(
         }
     }
 }
-
-fn check_duck(input_state: &InputState, player: &mut Player) {
-    if input_state.get_axis_state(&input::UP_AXIS) < 0.0 {
-        // The player is ducking
-        player.flags |= PF_DUCKED;
-    } else {
-        // If the player is ducked, try to stand up
-        if player.flags & PF_DUCKED != 0 {
-            // TODO: Check for collisions when standing up
-            // Trace a ray from above the player's head
-            // trace = trace(...)
-            // if !trace.allsolid {...}
-            player.flags &= !PF_DUCKED;
-        }
-    }
-    if player.flags & PF_DUCKED != 0 {
-        // TODO: Set the view height to DUCKED_VIEWHEIGHT
-    } else {
-        // TODO: Set the view height to DEFAULT_VIEWHEIGHT
-    }
-}
-
-fn apply_friction(player: &Player, velocity: &mut Velocity, time: &Time) {
-    // if pml.walking {vec[2] = 0}
-    let speed = velocity.linear.magnitude();
-    if speed < 0.001 {
-        return;
-    }
-
-    let mut drop = 0.0;
-    // Apply ground friction
-    if player.ground_entity.is_some() {
-        // We could do speed.min(STOPSPEED) here, but this is much more descriptive
-        let control = if speed < STOPSPEED { speed } else { STOPSPEED };
-        drop += control * FRICTION * time.delta;
-    }
-
-    let mut newspeed = speed - drop;
-    if newspeed < 0.0 {
-        newspeed = 0.0
-    }
-    if newspeed != speed {
-        // Determine proportion of old speed we are using
-        newspeed /= speed;
-        // Scale velocity according to proportion
-        velocity.linear *= newspeed;
-    }
-}
-
-// TODO_E: Move all to GameSettings (same as noclip_speed)
-const STOPSPEED: f32 = 100.0;
-const DUCKSCALE: f32 = 0.25;
-//const SWIMSCALE: f32 = 100.0;
-
-//const ACCELERATE: f32 = 10.0;
-const ACCELERATE: f32 = 1.00;
-const AIR_ACCELERATE: f32 = 1.0;
-const FLY_ACCELERATE: f32 = 4.0;
-//const NOCLIP_ACCELERATE: f32 = 4.0;
-const NOCLIP_ACCELERATE: f32 = 4.00;
-
-//const FRICTION: f32 = 6.0;
-const FRICTION: f32 = 0.06;
-const AIR_FRICTION: f32 = 3.0;
-const SPECTATOR_FRICTION: f32 = 5.0;
-
-//const MAXSPEED: f32 = 10.0;
-const MAXSPEED: f32 = 0.10;
