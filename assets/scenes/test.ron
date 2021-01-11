@@ -1,0 +1,37 @@
+(
+    objects: [
+        Model(
+            pos: Position(
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                rotation: None,
+            ),
+            scale: None,
+            obj: "models/map.obj",
+            parent: None,
+        ),
+        Model(
+            pos: Position(
+                x: 2.0,
+                y: 0.0,
+                z: 0.0,
+                rotation: None,
+            ),
+            scale: Some(All(0.75)),
+            obj: "models/player.obj",
+            parent: None,
+        ),
+        Model(
+            pos: Position(
+                x: 2.0,
+                y: -2.0,
+                z: 0.5,
+                rotation: Some(Axis(Z, 45.0)),
+            ),
+            scale: Some(All(0.5)),
+            obj: "models/dice.obj",
+            parent: None,
+        ),
+    ]
+)

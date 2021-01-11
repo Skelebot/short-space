@@ -17,7 +17,7 @@ impl Position {
 
         na::Isometry3::from_parts(translation, rotation)
     }
-    pub fn past(&self) -> &na::Isometry3<f32> {
+    pub fn _past(&self) -> &na::Isometry3<f32> {
         &self.past
     }
     pub fn future(&self) -> &na::Isometry3<f32> {

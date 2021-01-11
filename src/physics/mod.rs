@@ -53,10 +53,10 @@ pub fn step(
 // Linearly interpolate everything according to it's velocities
 #[system(for_each)]
 pub fn lerp(
-    #[resource] p_timer: &PhysicsTimer,
+    #[resource] _p_timer: &PhysicsTimer,
     //#[resource] physics_settings: &PhysicsSettings,
-    position: &mut Position,
-    velocity: &Velocity,
+    _position: &mut Position,
+    _velocity: &Velocity,
 ) {
 }
 
@@ -69,10 +69,9 @@ pub fn children_update(world: &mut SubWorld) {
     let (w_a, mut w_b) = world.split_for_query(&child_query);
 
     <(Entity, &Child)>::query().for_each(&w_a, |(e, c)| {
-        let parent_pos = <&Position>::query()
+        let parent_pos = *<&Position>::query()
             .get(&w_b, c.parent)
-            .expect("Parent entity doesn't exist or doesn't have a Position")
-            .clone();
+            .expect("Parent entity doesn't exist or doesn't have a Position");
         let position = <&mut Position>::query().get_mut(&mut w_b, *e).unwrap();
         *position = parent_pos;
     });

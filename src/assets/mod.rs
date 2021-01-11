@@ -4,10 +4,14 @@ pub mod data;
 pub mod settings;
 
 use anyhow::{anyhow, format_err, Error, Result};
-use data::MaterialData;
+use data::{MaterialData, Scene};
+use legion::World;
 use std::path::{Path, PathBuf};
 
-use crate::graphics::{color, mesh_pass::Vertex};
+use crate::{
+    graphics::{color, mesh_pass::Vertex, Graphics, RenderMesh},
+    spacetime::{self, Child},
+};
 
 use wavefront_obj as wobj;
 use wobj::{
@@ -17,6 +21,7 @@ use wobj::{
 
 use self::data::MeshPartData;
 
+/// Wraps any error into Anyhow::Error and adds formatted context to it
 macro_rules! wrap_err {
     ($e:ident, $contx:expr, $contx_args:expr) => {
         anyhow!($e).context(format_err!($contx, $contx_args))
@@ -48,6 +53,83 @@ impl AssetLoader {
         let str = self.load_str(self.root_path.join(&path))?;
         ron::from_str(str.as_str())
             .map_err(|e| wrap_err!(e, "Error while deserializing file {:?}: ", path))
+    }
+
+    // See Self::load
+    pub fn load_scene(&self, world: &mut World, graphics: &mut Graphics, path: &str) -> Result<()> {
+        let scene = self.load::<Scene>(&path)?;
+
+        // Create a (temporary) CommandEncoder for loading data to GPU
+        let mut encoder = graphics
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        let mut index_entity = Vec::new();
+
+        // TODO: Remove duplicated code here
+
+        for (i, object) in scene
+            .objects
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.parent.is_none())
+        {
+            self.load_obj_set(&object.obj)?
+                .into_iter()
+                .map(|mesh_data| {
+                    RenderMesh::from_parts(
+                        mesh_data.parts,
+                        &graphics.mesh_pass,
+                        &mut graphics.device,
+                        &mut encoder,
+                    )
+                })
+                .for_each(|render_mesh| {
+                    let pos: spacetime::Position = object.pos.into();
+                    debug!("pos: {:?}", pos);
+                    let e = if let Some(scale) = object.scale {
+                        let scale: spacetime::Scale = scale.into();
+                        world.push((pos, scale, render_mesh))
+                    } else {
+                        world.push((pos, render_mesh))
+                    };
+                    index_entity.push((i, e))
+                });
+        }
+
+        for object in scene.objects.iter().filter(|m| m.parent.is_some()) {
+            let parent_entity = index_entity
+                .iter()
+                .find(|(i, _)| *i == object.parent.unwrap())
+                .map(|(_, e)| e)
+                .ok_or_else(|| anyhow!("Incorrect parent index found"))?;
+            self.load_obj_set(&object.obj)?
+                .into_iter()
+                .map(|mesh_data| {
+                    RenderMesh::from_parts(
+                        mesh_data.parts,
+                        &graphics.mesh_pass,
+                        &mut graphics.device,
+                        &mut encoder,
+                    )
+                })
+                .for_each(|render_mesh| {
+                    let pos: spacetime::Position = object.pos.into();
+                    let child = Child {
+                        // TODO: Implement child offset
+                        offset: na::Isometry3::identity().into(),
+                        parent: *parent_entity,
+                    };
+                    if let Some(scale) = object.scale {
+                        let scale: spacetime::Scale = scale.into();
+                        world.push((pos, scale, child, render_mesh))
+                    } else {
+                        world.push((pos, child, render_mesh))
+                    };
+                });
+        }
+        graphics.queue.submit(Some(encoder.finish()));
+        Ok(())
     }
 
     pub fn load_str(&self, path: impl AsRef<Path>) -> Result<String> {

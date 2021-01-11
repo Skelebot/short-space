@@ -1,13 +1,10 @@
 use anyhow::Result;
+use legion::{IntoQuery, Resources, World};
 use spacetime::PhysicsTimer;
-
-use crate::{assets::AssetLoader, graphics::Pass, player::Atlas, spacetime};
 use wgpu::util::DeviceExt;
 
-use crate::graphics::Camera;
-use crate::physics;
-
-use legion::{Entity, IntoQuery, Resources, World};
+use crate::graphics::{Camera, Pass};
+use crate::{assets::AssetLoader, player::Atlas, spacetime};
 
 use super::{material::MaterialShading, pipeline::MeshPipeline, GlobalUniforms, RenderMesh};
 
@@ -246,7 +243,7 @@ impl Pass for MeshPass {
 
             let cam_pos = position.current(lerp);
 
-            let view_proj = camera.get_view_projection_matrix(&cam_pos);
+            let view_proj = camera.view_projection(&cam_pos);
             let global_uniforms = GlobalUniforms {
                 view_proj: view_proj.into(),
                 camera_pos: cam_pos.translation.vector.into(),

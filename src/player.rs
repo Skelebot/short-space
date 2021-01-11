@@ -29,7 +29,7 @@ use crate::assets::settings::PhysicsSettings;
 use crate::input::{self, InputState};
 use crate::physics::*;
 use crate::{
-    spacetime::{PhysicsTimer, Position, Time},
+    spacetime::{Position, Time},
     GameSettings, GameState,
 };
 use legion::{system, world::SubWorld, Entity, IntoQuery};
@@ -41,8 +41,7 @@ use legion::{system, world::SubWorld, Entity, IntoQuery};
 #[write_component(Position)]
 #[write_component(Velocity)]
 pub fn player_movement(
-    #[resource] p_timer: &mut PhysicsTimer,
-    #[resource] physics_settings: &PhysicsSettings,
+    #[resource] _physics_settings: &PhysicsSettings,
     #[resource] atlas: &Atlas,
     #[resource] input_state: &InputState,
     #[resource] game_state: &GameState,
@@ -53,38 +52,28 @@ pub fn player_movement(
     if game_state.paused {
         return;
     }
-    {
-        let mut player_query = <(&mut Player, &mut Position, &mut Velocity)>::query();
-        let (mut player_w, world) = world.split_for_query(&player_query);
-        let (player, position, velocity) =
-            player_query.get_mut(&mut player_w, atlas.player).unwrap();
-
-        // Rotate the player
-        {
-            // Get the all components belonging to the player-controlled player (here called Atlas)
-            let offset =
-                input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta as f32;
-
-            // TODO: Append rotations directly instead of creating new quaternions
-            let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), offset.x);
-            let xrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::x_axis(), offset.y);
-
-            // Note: By changing the order of multiplications here, we can make the camera
-            // do all rotations around it's own relative axes (including the z axis),
-            // which would make it a full 3D-space camera. This actually isn't good
-            // in FPS games, where the player never has to "roll" the camera
-            // (rotate around relative x) To fix this, we rotate around the z axis last,
-            // so it's always the world's absolute z axis.
-            // To make a space-type camera, the z rotation should be performed first.
-            // Note 2: When multiplying transformations, the order is actually done backwards
-            // (xrot is the first rotation performed, because it's the last one in the multiplication)
-
-            position.future_mut().rotation = zrot * position.future_mut().rotation * xrot
-        }
-    }
-
+    
     let mut player_query = <(&mut Player, &mut Position, &mut Velocity)>::query();
     let (player, position, velocity) = player_query.get_mut(world, atlas.player).unwrap();
+
+    // Rotate the player
+    let offset: na::Vector2::<f32> = input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta as f32;
+
+    // TODO: Append rotations directly instead of creating new quaternions
+    let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), offset.x);
+    let xrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::x_axis(), offset.y);
+
+    // Note: By changing the order of multiplications here, we can make the camera
+    // do all rotations around it's own relative axes (including the z axis),
+    // which would make it a full 3D-space camera. This actually isn't good
+    // in FPS games, where the player never has to "roll" the camera
+    // (rotate around relative x) To fix this, we rotate around the z axis last,
+    // so it's always the world's absolute z axis.
+    // To make a space-type camera, the z rotation should be performed first.
+    // Note 2: When multiplying transformations, the order is actually done backwards
+    // (xrot is the first rotation performed, because it's the last one in the multiplication)
+
+    position.future_mut().rotation = zrot * position.future_mut().rotation * xrot;
 
     // Finally, handle movement modes
     match player.state {

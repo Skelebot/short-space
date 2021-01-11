@@ -15,7 +15,7 @@ impl Camera {
         self.projection.set_aspect(aspect);
     }
 
-    pub fn get_view_matrix(&self, position: &na::Isometry3<f32>) -> na::Matrix4<f32> {
+    pub fn view(&self, position: &na::Isometry3<f32>) -> na::Matrix4<f32> {
         let eye = position.translation.vector.into();
 
         // Important note: those axes are colinear
@@ -35,11 +35,11 @@ impl Camera {
         na::Matrix::look_at_rh(&eye, &target, &up)
     }
 
-    pub fn get_projection_matrix(&self) -> na::Matrix4<f32> {
+    pub fn projection(&self) -> na::Matrix4<f32> {
         self.projection.into_inner()
     }
 
-    pub fn get_view_projection_matrix(&self, position: &na::Isometry3<f32>) -> na::Matrix4<f32> {
-        self.projection.into_inner() * self.get_view_matrix(position)
+    pub fn view_projection(&self, position: &na::Isometry3<f32>) -> na::Matrix4<f32> {
+        self.projection() * self.view(position)
     }
 }

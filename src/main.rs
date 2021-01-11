@@ -16,8 +16,8 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-use assets::settings::{GameSettings, PhysicsSettings};
-use graphics::{Graphics, RenderMesh};
+use assets::settings::GameSettings;
+use graphics::Graphics;
 use spacetime::{Child, Position};
 
 use anyhow::Result;
@@ -94,22 +94,14 @@ fn main() -> Result<(), anyhow::Error> {
                 graphics.resize(size, &mut world, &mut resources).unwrap();
             }
             // Handle user input
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::KeyboardInput { input, .. } => {
-                    input::handle_keyboard_input(input, &mut resources)
-                }
-                _ => {}
-            },
-            Event::DeviceEvent {
-                //device_id,
-                event,
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput { input, .. },
                 ..
-            } => match event {
-                DeviceEvent::MouseMotion { delta } => {
-                    input::handle_mouse_movement(delta, &mut resources)
-                }
-                _ => (),
-            },
+            } => input::handle_keyboard_input(input, &mut resources),
+            Event::DeviceEvent {
+                event: DeviceEvent::MouseMotion { delta },
+                ..
+            } => input::handle_mouse_movement(delta, &mut resources),
             // Event::Suspended
             // Event::Resumed
             // Emitted when all of the event loop's input events have been processed and redraw processing is about to begin.
@@ -158,50 +150,10 @@ fn setup_scene(
     resources: &mut Resources,
     graphics: &mut Graphics,
 ) -> Result<()> {
-    // Create a (temporary) CommandEncoder for loading data to GPU
-    let mut encoder = graphics
-        .device
-        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-
-    // Load models from an obj file and add them into the world
     {
         let loader = resources.get::<assets::AssetLoader>().unwrap();
-
-        loader
-            .load_obj_set("models/map.obj")?
-            .into_iter()
-            .map(|mesh_data| {
-                RenderMesh::from_parts(
-                    mesh_data.parts,
-                    &graphics.mesh_pass,
-                    &mut graphics.device,
-                    &mut encoder,
-                )
-            })
-            .for_each(|render_mesh| {
-                let pos: Position = na::Isometry3::translation(0.0, 0.0, 0.0).into();
-                world.push((pos, render_mesh));
-            });
-
-        let player_mesh = {
-            let data = loader
-                .load_obj_set("models/player.obj")?
-                .into_iter()
-                .next()
-                .unwrap();
-            RenderMesh::from_parts(
-                data.parts,
-                &graphics.mesh_pass,
-                &mut graphics.device,
-                &mut encoder,
-            )
-        };
-        world.push((
-            Position::from(na::Isometry3::translation(2.0, 0.0, 0.0)),
-            player_mesh,
-        ));
+        loader.load_scene(world, graphics, "scenes/test.ron")?
     }
-    graphics.queue.submit(Some(encoder.finish()));
 
     // Create the player
     let pos: Position = na::Isometry3::from_parts(

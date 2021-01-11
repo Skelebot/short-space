@@ -13,7 +13,7 @@ fn camera_test() {
 
     let camera = graphics::Camera::new(aspect, fov, znear, zfar);
 
-    let cam_proj = camera.get_projection_matrix();
+    let cam_proj = camera.projection();
     let proj = na::Perspective3::new(aspect, fov, znear, zfar);
 
     assert_eq!(cam_proj, proj.into_inner());
@@ -23,7 +23,7 @@ fn camera_test() {
         na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 90.0_f32.to_radians()),
     );
 
-    let cam_view = camera.get_view_matrix(&pos);
+    let cam_view = camera.view(&pos);
     let view = {
         let position: na::Point3<f32> = pos.translation.vector.into();
         let target = pos * na::Point3::new(0.0, 1.0, 0.0);
