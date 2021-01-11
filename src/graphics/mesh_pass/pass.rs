@@ -1,4 +1,4 @@
-use anyhow::Result;
+use eyre::Result;
 use legion::{IntoQuery, Resources, World};
 use spacetime::PhysicsTimer;
 use wgpu::util::DeviceExt;

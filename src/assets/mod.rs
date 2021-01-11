@@ -3,8 +3,8 @@ extern crate image;
 pub mod data;
 pub mod settings;
 
-use anyhow::{anyhow, format_err, Error, Result};
 use data::{MaterialData, Scene};
+use eyre::{eyre::eyre, eyre::WrapErr, Result};
 use legion::World;
 use std::path::{Path, PathBuf};
 
@@ -21,24 +21,17 @@ use wobj::{
 
 use self::data::MeshPartData;
 
-/// Wraps any error into Anyhow::Error and adds formatted context to it
-macro_rules! wrap_err {
-    ($e:ident, $contx:expr, $contx_args:expr) => {
-        anyhow!($e).context(format_err!($contx, $contx_args))
-    };
-}
-
 pub struct AssetLoader {
     root_path: PathBuf,
 }
 
 impl AssetLoader {
-    pub fn from_relative_exe_path(rel_path: &Path) -> Result<AssetLoader, Error> {
+    pub fn from_relative_exe_path(rel_path: &Path) -> Result<AssetLoader> {
         let exe_file_name = std::env::current_exe()?;
 
         let exe_path = exe_file_name
             .parent()
-            .ok_or_else(|| anyhow!("Could not find executable's parent directory"))?;
+            .ok_or_else(|| eyre!("Could not find executable's parent directory"))?;
 
         Ok(AssetLoader {
             root_path: exe_path.join(rel_path),
@@ -52,7 +45,7 @@ impl AssetLoader {
     pub fn load<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
         let str = self.load_str(self.root_path.join(&path))?;
         ron::from_str(str.as_str())
-            .map_err(|e| wrap_err!(e, "Error while deserializing file {:?}: ", path))
+            .wrap_err_with(|| format!("Error while deserializing file {:?}: ", path))
     }
 
     // See Self::load
@@ -102,7 +95,7 @@ impl AssetLoader {
                 .iter()
                 .find(|(i, _)| *i == object.parent.unwrap())
                 .map(|(_, e)| e)
-                .ok_or_else(|| anyhow!("Incorrect parent index found"))?;
+                .ok_or_else(|| eyre!("Incorrect parent index found"))?;
             self.load_obj_set(&object.obj)?
                 .into_iter()
                 .map(|mesh_data| {
@@ -134,12 +127,12 @@ impl AssetLoader {
 
     pub fn load_str(&self, path: impl AsRef<Path>) -> Result<String> {
         std::fs::read_to_string(&path)
-            .map_err(|e| wrap_err!(e, "File not found: {:?}", path.as_ref()))
+            .wrap_err_with(|| format!("File not found: {:?}", path.as_ref()))
     }
 
     pub fn load_texture(&self, path: impl AsRef<Path>) -> Result<image::DynamicImage> {
         image::open(self.root_path.join(&path))
-            .map_err(|e| wrap_err!(e, "Failed to open image: {:?}", path.as_ref()))
+            .wrap_err_with(|| format!("Failed to open image: {:?}", path.as_ref()))
     }
 
     fn load_map_img(&self, path: impl AsRef<Path>) -> Result<image::RgbaImage> {
@@ -157,39 +150,36 @@ impl AssetLoader {
 
     pub fn load_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>> {
         std::fs::read(self.root_path.join(&path))
-            .map_err(|e| wrap_err!(e, "Could not find file: {:?}", self.root_path.join(&path)))
+            .wrap_err_with(|| format!("Could not find file: {:?}", self.root_path.join(&path)))
     }
 
     pub fn load_material_set(&self, path: impl AsRef<Path>) -> Result<MtlSet> {
-        wobj::mtl::parse(&std::fs::read_to_string(self.root_path.join(&path))?).map_err(|e| {
-            wrap_err!(
-                e,
-                "Error while parsing material set from file: {:?}",
-                self.root_path.join(path)
-            )
-        })
+        wobj::mtl::parse(&std::fs::read_to_string(self.root_path.join(&path))?).wrap_err_with(
+            || {
+                format!(
+                    "Error while parsing material set from file: {:?}",
+                    self.root_path.join(path)
+                )
+            },
+        )
     }
 
     pub fn load_obj_set(&self, path: impl AsRef<Path>) -> Result<Vec<data::MeshData>> {
         let obj_path = self.root_path.join(&path);
         let obj_parent = obj_path.parent().unwrap();
         let obj_file = std::fs::read_to_string(&obj_path)
-            .map_err(|e| wrap_err!(e, "Mesh not found: {:?}", &obj_path))?;
+            .wrap_err_with(|| format!("Mesh not found: {:?}", &obj_path))?;
 
         // A set of objects; a single wavefront OBJ file can contain multiple objects
-        let object_set = wobj::obj::parse(&obj_file.as_str()).map_err(|e| {
-            wrap_err!(
-                e,
-                "Error while parsing object set from file: {:?}",
-                obj_path
-            )
+        let object_set = wobj::obj::parse(&obj_file.as_str()).wrap_err_with(|| {
+            format!("Error while parsing object set from file: {:?}", obj_path)
         })?;
 
         // The set of materials for objects; if None, the objects do not have materials
         let material_set = if let Some(mtl_lib_path) = object_set.material_library {
             self.load_material_set(obj_parent.join(mtl_lib_path))
         } else {
-            Err(format_err!(
+            Err(eyre!(
                 "Expected the model: {:?} to have at least one material",
                 self.root_path.join(&path)
             ))

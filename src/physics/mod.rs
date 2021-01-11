@@ -1,6 +1,6 @@
 use crate::assets::{settings::PhysicsSettings, AssetLoader};
 use crate::spacetime::{Child, PhysicsTimer, Position, Time};
-use anyhow::Result;
+use eyre::Result;
 use legion::{system, world::SubWorld, Resources, World};
 use legion::{Entity, IntoQuery};
 

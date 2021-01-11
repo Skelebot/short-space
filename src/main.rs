@@ -1,3 +1,4 @@
+extern crate color_eyre as eyre;
 extern crate nalgebra as na;
 extern crate ncollide3d as nc;
 
@@ -20,7 +21,7 @@ use assets::settings::GameSettings;
 use graphics::Graphics;
 use spacetime::{Child, Position};
 
-use anyhow::Result;
+use eyre::Result;
 use legion::{Resources, Schedule, World};
 
 use state::GameState;
@@ -31,8 +32,9 @@ use winit::{
     event_loop::ControlFlow,
 };
 
-fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<()> {
     env_logger::init();
+    color_eyre::install()?;
     info!("Starting up");
 
     // Create the Legion world (where entities live)

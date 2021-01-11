@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Result};
 use bytemuck::{Pod, Zeroable};
+use eyre::{eyre::eyre, Result};
 use wgpu::util::DeviceExt;
 
 #[derive(Debug)]
@@ -72,7 +72,7 @@ impl MeshMaterial {
             })
         } else {
             let texture_view = texture
-                .ok_or_else(|| anyhow!("Cannot create a textured material without a texture"))?
+                .ok_or_else(|| eyre!("Cannot create a textured material without a texture"))?
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
             // TODO: Review and customize

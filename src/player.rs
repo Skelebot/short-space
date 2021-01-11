@@ -52,12 +52,13 @@ pub fn player_movement(
     if game_state.paused {
         return;
     }
-    
+
     let mut player_query = <(&mut Player, &mut Position, &mut Velocity)>::query();
     let (player, position, velocity) = player_query.get_mut(world, atlas.player).unwrap();
 
     // Rotate the player
-    let offset: na::Vector2::<f32> = input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta as f32;
+    let offset: na::Vector2<f32> =
+        input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta as f32;
 
     // TODO: Append rotations directly instead of creating new quaternions
     let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), offset.x);

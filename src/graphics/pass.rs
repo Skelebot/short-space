@@ -1,4 +1,4 @@
-use anyhow::Result;
+use eyre::Result;
 use legion::{Resources, World};
 
 pub trait Pass {

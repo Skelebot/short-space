@@ -1,4 +1,4 @@
-use anyhow::Result;
+use eyre::{eyre::eyre, eyre::WrapErr, Result};
 use legion::{Resources, World};
 use winit::{event_loop::EventLoop, window::Window};
 
@@ -36,10 +36,7 @@ pub async fn setup(
             compatible_surface: Some(&surface),
         })
         .await
-        .ok_or_else(||
-            anyhow::format_err!(
-                "Couldn't find a compatible graphics adapter for backend: {:?}\nIf you want to force a different backend, set the WGPU_BACKEND environmental variable.\nKeep in mind that OpenGL is not currently supported.",
-            backend))?;
+        .ok_or_else(|| eyre!("Couldn't find a compatible graphics adapter for backend: {:?}\nIf you want to force a different backend, set the WGPU_BACKEND environmental variable.\nKeep in mind that OpenGL is not currently supported.", backend))?;
 
     // Optional trace file
     let trace_dir = std::env::var("WGPU_TRACE");
@@ -55,9 +52,7 @@ pub async fn setup(
             trace_dir.ok().as_ref().map(std::path::Path::new),
         )
         .await
-        .map_err(|err| {
-            anyhow::anyhow!(err).context(anyhow::Error::msg("Failed to create the graphics device"))
-        })?;
+        .wrap_err_with(|| "Failed to create the graphics device")?;
 
     let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let swap_chain_desc = wgpu::SwapChainDescriptor {

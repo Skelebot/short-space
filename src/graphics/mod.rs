@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use eyre::{eyre::WrapErr, Result};
 use legion::{Resources, World};
 use mesh_pass::MeshPass;
 use winit::dpi::PhysicalSize;
@@ -57,7 +57,7 @@ impl Graphics {
         let mut frame = self
             .swap_chain
             .get_current_frame()
-            .map_err(|err| Error::msg("Failed to acquire next swap chain texture").context(err))?
+            .wrap_err_with(|| "Failed to acquire next swap chain texture")?
             .output;
 
         let mut encoder = self
