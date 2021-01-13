@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use eyre::{eyre::WrapErr, Result};
 use legion::{Resources, World};
-use mesh_pass::{pass::MeshPassPipelines, MeshPass};
+use mesh_pass::MeshPass;
 use winit::dpi::PhysicalSize;
 
 use wgpu::util::DeviceExt;
@@ -54,7 +54,7 @@ impl Graphics {
 
         // Let all the render passes resize their internal buffers
         self.mesh_pass
-            .resize(&mut self.device, &mut self.queue, &mut self.sc_desc, world)?;
+            .resize(&self.device, &self.queue, &mut self.sc_desc, world)?;
 
         Ok(())
     }
@@ -71,7 +71,7 @@ impl Graphics {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         // Render onto the frame with render passes
-        if let Some(_) = resources.get::<MeshPassEnable>() {
+        if resources.get::<MeshPassEnable>().is_some() {
             self.mesh_pass.render(
                 &self.device,
                 &self.queue,

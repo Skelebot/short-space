@@ -35,9 +35,7 @@ pub fn handle_keyboard_input(input: winit::event::KeyboardInput, resources: &mut
     if let Some(vkeycode) = input.virtual_keycode {
         let mut input_state = resources.get_mut::<InputState>().unwrap();
 
-        match (vkeycode, input.state) {
-            (keycode, state) => input_state.handle_key_event(&keycode, &state),
-        }
+        input_state.handle_key_event(&vkeycode, &input.state);
     }
 }
 

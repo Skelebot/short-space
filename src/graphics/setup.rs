@@ -46,7 +46,7 @@ pub async fn setup(
     let trace_dir = std::env::var("WGPU_TRACE");
 
     // Create the logical device and command queue
-    let (mut device, queue) = adapter
+    let (device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
                 features: wgpu::Features::default(),
@@ -74,7 +74,7 @@ pub async fn setup(
 
     // Initialize render passes
 
-    let mesh_pass = MeshPass::new(&mut device, &swap_chain_desc, world, resources)?;
+    let mesh_pass = MeshPass::new(&device, &swap_chain_desc, world, resources)?;
 
     Ok((
         Graphics {

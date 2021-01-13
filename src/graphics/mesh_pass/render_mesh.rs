@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{assets::data::*, graphics::Graphics};
 
-use super::{material::*, pass::MeshPassPipelines, MeshPass, MeshUniforms};
+use super::{material::*, pass::MeshPassPipelines, MeshUniforms};
 
 pub struct MeshLayouts {
     pub mesh: Rc<wgpu::BindGroupLayout>,

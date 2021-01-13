@@ -1,10 +1,19 @@
 use eyre::{eyre::eyre, Result};
 use legion::{Resources, World};
 
+pub mod game;
+pub mod loading;
+pub mod main;
+
+// Marker component for entities which get removed when on_stop() of their containing state gets removed
+#[derive(Clone, Copy)]
+pub struct Scoped {
+    id: std::any::TypeId,
+}
+
 #[derive(Debug)]
 pub enum CustomEvent {
-    GrabCursor,
-    UngrabCursor,
+    Exit,
 }
 
 pub enum Transition {
@@ -12,9 +21,8 @@ pub enum Transition {
     Pop,
     Push(Box<dyn State>),
     Switch(Box<dyn State>),
-    Quit,
 }
-use winit::event::{Event, WindowEvent};
+use winit::event::Event;
 
 pub trait State {
     fn on_start(&mut self, _world: &mut World, _resources: &mut Resources) {}
@@ -25,7 +33,7 @@ pub trait State {
         &mut self,
         _world: &mut World,
         _resources: &mut Resources,
-        event: Event<CustomEvent>,
+        _event: Event<CustomEvent>,
     ) -> Transition {
         Transition::None
     }
@@ -86,7 +94,6 @@ impl<'s> StateMachine<'s> {
             Transition::Pop => self.pop(world, resources),
             Transition::Push(state) => self.push(state, world, resources),
             Transition::Switch(state) => self.switch(state, world, resources),
-            Transition::Quit => self.stop(world, resources),
         }
     }
 

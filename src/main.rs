@@ -13,21 +13,18 @@ mod physics;
 mod player;
 mod spacetime;
 mod state;
-mod states;
 
 #[cfg(test)]
 mod tests;
 
 use assets::settings::GameSettings;
-use graphics::{Graphics, GraphicsShared};
-use spacetime::{Child, Position};
+use graphics::GraphicsShared;
 
 use eyre::Result;
-use legion::{Resources, Schedule, World};
+use legion::{Resources, World};
 
 use futures::executor::block_on;
-use state::StateMachine;
-use states::main::MainState;
+use state::{CustomEvent, StateMachine};
 use winit::{
     event::{DeviceEvent, Event, WindowEvent},
     event_loop::ControlFlow,
@@ -72,7 +69,7 @@ fn main() -> Result<()> {
 
     resources.insert(s);
 
-    let mut state_machine = StateMachine::new(MainState::new());
+    let mut state_machine = StateMachine::new(state::main::MainState::new());
     state_machine.start(&mut world, &mut resources)?;
 
     info!("Running the event loop");
@@ -90,7 +87,11 @@ fn main() -> Result<()> {
             &Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = ControlFlow::Exit,
+            }
+            | &Event::UserEvent(CustomEvent::Exit) => {
+                state_machine.stop(&mut world, &mut resources);
+                *control_flow = ControlFlow::Exit
+            }
             // Handle window resizing
             &Event::WindowEvent {
                 event: WindowEvent::Resized(size),

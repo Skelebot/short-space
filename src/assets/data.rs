@@ -1,3 +1,5 @@
+#![allow(clippy::from_over_into)]
+
 use crate::{
     graphics::{color, mesh_pass::Vertex},
     spacetime,

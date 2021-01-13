@@ -1,7 +1,5 @@
-use crate::assets::{settings::PhysicsSettings, AssetLoader};
 use crate::spacetime::{Child, PhysicsTimer, Position, Time};
-use eyre::Result;
-use legion::{system, world::SubWorld, Resources, World};
+use legion::{system, world::SubWorld};
 use legion::{Entity, IntoQuery};
 
 // Shamelessly stolen from nphysics (https://www.nphysics.org/rustdoc/nphysics3d/algebra/struct.Velocity3.html)

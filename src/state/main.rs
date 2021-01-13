@@ -2,7 +2,7 @@ use crate::state::*;
 use legion::{Resources, Schedule, World};
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 
-use super::{game::GameState, loading::LoadingState};
+use super::loading::LoadingState;
 
 pub struct MainState {
     schedule: Schedule,
@@ -29,19 +29,33 @@ impl State for MainState {
     fn handle_event(
         &mut self,
         _world: &mut World,
-        _resources: &mut Resources,
+        resources: &mut Resources,
         event: winit::event::Event<CustomEvent>,
     ) -> Transition {
         match event {
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode,
+                                ..
+                            },
+                        ..
+                    },
                 ..
-            } => match input {
-                KeyboardInput {
-                    state: ElementState::Pressed,
-                    virtual_keycode: Some(VirtualKeyCode::N),
-                    ..
-                } => Transition::Push(Box::new(LoadingState::new())),
+            } => match virtual_keycode {
+                Some(VirtualKeyCode::Escape) => {
+                    resources
+                        .get::<winit::event_loop::EventLoopProxy<CustomEvent>>()
+                        .unwrap()
+                        .send_event(CustomEvent::Exit)
+                        .unwrap();
+                    // Doesn't matter
+                    Transition::None
+                }
+                Some(VirtualKeyCode::N) => Transition::Push(Box::new(LoadingState::new())),
                 _ => Transition::None,
             },
             _ => Transition::None,

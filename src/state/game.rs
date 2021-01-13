@@ -2,24 +2,19 @@ use std::any::TypeId;
 
 use crate::{
     assets::settings::{GameSettings, PhysicsSettings},
-    graphics::{self, Graphics},
+    graphics,
     player::Atlas,
     spacetime::PhysicsTimer,
     state::*,
 };
-use eyre::{eyre::eyre, Result};
 use graphics::{GraphicsShared, MeshPassEnable};
 use legion::{Entity, Resources, Schedule, World};
-use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::EventLoopProxy,
-};
+use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 
 use super::Scoped;
 
 pub struct GameState {
     schedule: Schedule,
-    paused: bool,
 }
 
 impl GameState {
@@ -30,10 +25,7 @@ impl GameState {
             .add_system(crate::physics::lerp_system())
             .add_system(crate::physics::children_update_system())
             .build();
-        GameState {
-            schedule,
-            paused: false,
-        }
+        GameState { schedule }
     }
 }
 
@@ -67,14 +59,10 @@ impl State for GameState {
         graphics.window.set_cursor_visible(true);
     }
 
-    fn on_pause(&mut self, _world: &mut World, _resources: &mut Resources) {}
-
-    fn on_resume(&mut self, _world: &mut World, _resources: &mut Resources) {}
-
     fn handle_event(
         &mut self,
         _world: &mut World,
-        resources: &mut Resources,
+        _resources: &mut Resources,
         event: winit::event::Event<CustomEvent>,
     ) -> Transition {
         match event {
@@ -91,11 +79,7 @@ impl State for GameState {
                     },
                 ..
             } => match code {
-                VirtualKeyCode::M => {
-                    let proxy = resources.get::<EventLoopProxy<CustomEvent>>().unwrap();
-                    proxy.send_event(CustomEvent::UngrabCursor).unwrap();
-                    Transition::Pop
-                }
+                VirtualKeyCode::M => Transition::Pop,
                 VirtualKeyCode::Escape => {
                     // Pause the game
                     Transition::None
@@ -110,6 +94,4 @@ impl State for GameState {
         self.schedule.execute(world, resources);
         Transition::None
     }
-
-    fn update_inactive(&mut self, _world: &mut World, _resources: &mut Resources) {}
 }

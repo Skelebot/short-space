@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#![allow(clippy::from_over_into)]
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Rgb<T = f32> {
     r: T,

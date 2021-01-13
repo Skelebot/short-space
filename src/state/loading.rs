@@ -1,8 +1,3 @@
-use std::any::TypeId;
-
-use eyre::Result;
-use legion::Entity;
-
 use crate::{
     assets::{
         self,
@@ -104,15 +99,11 @@ impl State for LoadingState {
         self.done = true;
     }
 
-    fn on_pause(&mut self, _world: &mut legion::World, _resources: &mut legion::Resources) {}
-
-    fn on_resume(&mut self, _world: &mut legion::World, _resources: &mut legion::Resources) {}
-
     fn handle_event(
         &mut self,
         _world: &mut legion::World,
         _resources: &mut legion::Resources,
-        event: winit::event::Event<crate::state::CustomEvent>,
+        _event: winit::event::Event<crate::state::CustomEvent>,
     ) -> crate::state::Transition {
         crate::state::Transition::None
     }
@@ -128,8 +119,4 @@ impl State for LoadingState {
             crate::state::Transition::None
         }
     }
-
-    fn update_inactive(&mut self, _world: &mut legion::World, _resources: &mut legion::Resources) {}
-
-    fn on_stop(&mut self, world: &mut legion::World, resources: &mut legion::Resources) {}
 }

@@ -6,13 +6,12 @@ pub mod settings;
 use data::{MaterialData, Scene};
 use eyre::{eyre::eyre, eyre::WrapErr, Result};
 use legion::World;
-use nc::pipeline::object;
 use std::path::{Path, PathBuf};
 
 use crate::{
-    graphics::{color, mesh_pass::Vertex, Graphics, GraphicsShared, RenderMesh},
+    graphics::{color, mesh_pass::Vertex, GraphicsShared, RenderMesh},
     spacetime::{self, Child},
-    states::Scoped,
+    state::Scoped,
 };
 
 use wavefront_obj as wobj;
@@ -121,7 +120,7 @@ impl AssetLoader {
                         offset: na::Isometry3::identity().into(),
                         parent: *parent_entity,
                     };
-                    let ent = match (object.scale, scoped) {
+                    match (object.scale, scoped) {
                         (Some(scale), Some(scope)) => {
                             world.push((pos, scale, render_mesh, child, scope))
                         }

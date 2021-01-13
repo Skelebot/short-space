@@ -14,7 +14,8 @@ pub enum MaterialShading {
 
 use MaterialShading::*;
 
-use super::{render_mesh::MeshLayouts, MeshPass};
+use super::render_mesh::MeshLayouts;
+
 impl MaterialShading {
     pub fn _is_lit(&self) -> bool {
         matches!(self, UntexturedUnlit | TexturedUnlit)
