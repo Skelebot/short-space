@@ -14,7 +14,7 @@ pub enum MaterialShading {
 
 use MaterialShading::*;
 
-use super::MeshPass;
+use super::{render_mesh::MeshLayouts, MeshPass};
 impl MaterialShading {
     pub fn _is_lit(&self) -> bool {
         matches!(self, UntexturedUnlit | TexturedUnlit)
@@ -52,8 +52,8 @@ impl MeshMaterial {
         shading: MaterialShading,
         factors: MaterialFactors,
         texture: Option<wgpu::Texture>,
-        device: &mut wgpu::Device,
-        mesh_pass: &MeshPass,
+        device: &wgpu::Device,
+        layouts: &MeshLayouts,
     ) -> Result<Self> {
         let factors_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
@@ -64,7 +64,7 @@ impl MeshMaterial {
         let bind_group = if !shading.is_textured() {
             device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
-                layout: &mesh_pass.pipelines.untextured.part_bind_group_layout,
+                layout: &layouts.material.untextured.part_bind_group_layout,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(factors_buf.slice(..)),
@@ -80,7 +80,7 @@ impl MeshMaterial {
 
             device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
-                layout: &mesh_pass.pipelines.textured.part_bind_group_layout,
+                layout: &layouts.material.textured.part_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,

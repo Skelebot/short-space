@@ -1,10 +1,7 @@
 use nalgebra as na;
 
-use crate::state::GameState;
-
 use legion::Resources;
 
-use winit::event::ElementState;
 use winit::event::VirtualKeyCode;
 
 mod state;
@@ -39,10 +36,6 @@ pub fn handle_keyboard_input(input: winit::event::KeyboardInput, resources: &mut
         let mut input_state = resources.get_mut::<InputState>().unwrap();
 
         match (vkeycode, input.state) {
-            (VirtualKeyCode::Escape, ElementState::Pressed) => {
-                let mut game_state = resources.get_mut::<GameState>().unwrap();
-                game_state.paused = !game_state.paused;
-            }
             (keycode, state) => input_state.handle_key_event(&keycode, &state),
         }
     }

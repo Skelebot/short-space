@@ -79,7 +79,7 @@ pub struct MeshPipeline {
 
 impl MeshPipeline {
     fn new(
-        device: &mut wgpu::Device,
+        device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
         global_bind_group_layout: &wgpu::BindGroupLayout,
         mesh_bind_group_layout: &wgpu::BindGroupLayout,
@@ -140,7 +140,7 @@ impl MeshPipeline {
 
     pub fn shaded(
         ty: MaterialShading,
-        device: &mut wgpu::Device,
+        device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
         global_bind_group_layout: &wgpu::BindGroupLayout,
         mesh_bind_group_layout: &wgpu::BindGroupLayout,

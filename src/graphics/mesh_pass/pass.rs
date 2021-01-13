@@ -22,9 +22,9 @@ pub struct MeshPass {
     pub global_bind_group: wgpu::BindGroup,
 
     pub global_uniform_buf: wgpu::Buffer,
-    pub mesh_bind_group_layout: wgpu::BindGroupLayout,
+    pub mesh_bind_group_layout: std::rc::Rc<wgpu::BindGroupLayout>,
 
-    pub pipelines: MeshPassPipelines,
+    pub pipelines: std::rc::Rc<MeshPassPipelines>,
 
     depth_texture: wgpu::Texture,
     // For clearing
@@ -33,7 +33,7 @@ pub struct MeshPass {
 
 impl MeshPass {
     pub fn new(
-        device: &mut wgpu::Device,
+        device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
         _world: &mut World,
         resources: &mut Resources,
@@ -176,8 +176,8 @@ impl MeshPass {
             global_bind_group,
             global_bind_group_layout,
             global_uniform_buf,
-            pipelines,
-            mesh_bind_group_layout,
+            pipelines: std::rc::Rc::new(pipelines),
+            mesh_bind_group_layout: std::rc::Rc::new(mesh_bind_group_layout),
             depth_texture,
             depth_texture_view,
         };
@@ -189,11 +189,10 @@ impl MeshPass {
 impl Pass for MeshPass {
     fn resize(
         &mut self,
-        device: &mut wgpu::Device,
-        _queue: &mut wgpu::Queue,
+        device: &wgpu::Device,
+        _queue: &wgpu::Queue,
         sc_desc: &mut wgpu::SwapChainDescriptor,
         world: &mut legion::World,
-        _resources: &legion::Resources,
     ) -> Result<()> {
         self.depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
@@ -221,8 +220,8 @@ impl Pass for MeshPass {
     }
     fn render(
         &mut self,
-        _device: &mut wgpu::Device,
-        queue: &mut wgpu::Queue,
+        _device: &wgpu::Device,
+        queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         // Usually the frame
         target: &mut wgpu::SwapChainTexture,

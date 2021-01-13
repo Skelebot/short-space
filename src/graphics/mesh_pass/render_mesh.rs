@@ -1,8 +1,15 @@
+use std::rc::Rc;
+
 use wgpu::util::DeviceExt;
 
 use crate::{assets::data::*, graphics::Graphics};
 
-use super::{material::*, MeshPass, MeshUniforms};
+use super::{material::*, pass::MeshPassPipelines, MeshPass, MeshUniforms};
+
+pub struct MeshLayouts {
+    pub mesh: Rc<wgpu::BindGroupLayout>,
+    pub material: Rc<MeshPassPipelines>,
+}
 
 pub struct RenderMeshPart {
     pub material: MeshMaterial,
@@ -14,9 +21,9 @@ pub struct RenderMeshPart {
 impl RenderMeshPart {
     pub fn new(
         data: MeshPartData,
-        device: &mut wgpu::Device,
+        device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
-        mesh_pass: &MeshPass,
+        layouts: &MeshLayouts,
     ) -> Self {
         let is_emissive = data.material.color_emissive != [0.0, 0.0, 0.0].into();
         let is_lit = data.material.lighting;
@@ -47,7 +54,7 @@ impl RenderMeshPart {
                 .diffuse_map
                 .map(|tex| Graphics::upload_texture(device, encoder, false, tex)),
             device,
-            mesh_pass,
+            layouts,
         )
         .unwrap();
 
@@ -81,8 +88,8 @@ pub struct RenderMesh {
 impl RenderMesh {
     pub fn from_parts(
         parts: Vec<MeshPartData>,
-        mesh_pass: &MeshPass,
-        device: &mut wgpu::Device,
+        layouts: &MeshLayouts,
+        device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
     ) -> RenderMesh {
         let model_uniform = MeshUniforms {
@@ -97,7 +104,7 @@ impl RenderMesh {
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &mesh_pass.mesh_bind_group_layout,
+            layout: &layouts.mesh,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: wgpu::BindingResource::Buffer(uniform_buf.slice(..)),
@@ -106,7 +113,7 @@ impl RenderMesh {
 
         let mut render_parts = Vec::with_capacity(parts.len());
         for part_data in parts {
-            render_parts.push(RenderMeshPart::new(part_data, device, encoder, mesh_pass))
+            render_parts.push(RenderMeshPart::new(part_data, device, encoder, layouts))
         }
 
         RenderMesh {

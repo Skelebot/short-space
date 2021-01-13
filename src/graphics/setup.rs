@@ -1,14 +1,18 @@
+use std::rc::Rc;
+
 use eyre::{eyre::eyre, eyre::WrapErr, Result};
 use legion::{Resources, World};
 use winit::{event_loop::EventLoop, window::Window};
+
+use crate::state::CustomEvent;
 
 use super::{mesh_pass::MeshPass, Graphics};
 
 pub async fn setup(
     world: &mut World,
     resources: &mut Resources,
-) -> Result<(Graphics, EventLoop<()>)> {
-    let event_loop = EventLoop::new();
+) -> Result<(Graphics, EventLoop<CustomEvent>)> {
+    let event_loop = EventLoop::<CustomEvent>::with_user_event();
     let window = Window::new(&event_loop)?;
 
     let backend = if let Ok(backend) = std::env::var("WGPU_BACKEND") {
@@ -74,13 +78,13 @@ pub async fn setup(
 
     Ok((
         Graphics {
-            device,
+            device: Rc::new(device),
+            queue: Rc::new(queue),
+            window: Rc::new(window),
+            mesh_pass,
             swap_chain,
             sc_desc: swap_chain_desc,
             surface,
-            queue,
-            window,
-            mesh_pass,
         },
         event_loop,
     ))

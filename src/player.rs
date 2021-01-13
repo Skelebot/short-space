@@ -30,7 +30,7 @@ use crate::input::{self, InputState};
 use crate::physics::*;
 use crate::{
     spacetime::{Position, Time},
-    GameSettings, GameState,
+    GameSettings,
 };
 use legion::{system, world::SubWorld, Entity, IntoQuery};
 
@@ -44,15 +44,10 @@ pub fn player_movement(
     #[resource] _physics_settings: &PhysicsSettings,
     #[resource] atlas: &Atlas,
     #[resource] input_state: &InputState,
-    #[resource] game_state: &GameState,
     #[resource] game_settings: &GameSettings,
     #[resource] time: &mut Time,
     world: &mut SubWorld,
 ) {
-    if game_state.paused {
-        return;
-    }
-
     let mut player_query = <(&mut Player, &mut Position, &mut Velocity)>::query();
     let (player, position, velocity) = player_query.get_mut(world, atlas.player).unwrap();
 

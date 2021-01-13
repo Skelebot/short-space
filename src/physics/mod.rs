@@ -18,18 +18,6 @@ impl From<nc::shape::ShapeHandle<f32>> for Collider {
     }
 }
 
-pub fn setup(_world: &mut World, resources: &mut Resources) -> Result<()> {
-    let settings = resources
-        .get::<AssetLoader>()
-        .unwrap()
-        .load::<PhysicsSettings>("settings/physics.ron")?;
-    let timer = PhysicsTimer::new(settings.step_time);
-
-    resources.insert(settings);
-    resources.insert(timer);
-    Ok(())
-}
-
 #[system]
 #[read_component(Collider)]
 #[write_component(Position)]

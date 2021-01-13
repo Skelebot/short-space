@@ -1,6 +1,8 @@
+use std::rc::Rc;
+
 use eyre::{eyre::WrapErr, Result};
 use legion::{Resources, World};
-use mesh_pass::MeshPass;
+use mesh_pass::{pass::MeshPassPipelines, MeshPass};
 use winit::dpi::PhysicalSize;
 
 use wgpu::util::DeviceExt;
@@ -18,15 +20,24 @@ pub use pass::Pass;
 
 pub mod mesh_pass;
 pub use mesh_pass::RenderMesh;
+pub struct MeshPassEnable;
+
+pub struct GraphicsShared {
+    pub device: Rc<wgpu::Device>,
+    pub queue: Rc<wgpu::Queue>,
+    pub window: Rc<winit::window::Window>,
+    pub mesh_layouts: mesh_pass::MeshLayouts,
+}
 
 pub struct Graphics {
-    pub device: wgpu::Device,
+    pub device: Rc<wgpu::Device>,
+    pub queue: Rc<wgpu::Queue>,
+    pub window: Rc<winit::window::Window>,
+    pub mesh_pass: MeshPass,
+
     pub swap_chain: wgpu::SwapChain,
     pub sc_desc: wgpu::SwapChainDescriptor,
     pub surface: wgpu::Surface,
-    pub queue: wgpu::Queue,
-    pub window: winit::window::Window,
-    pub mesh_pass: MeshPass,
 }
 
 impl Graphics {
@@ -34,7 +45,7 @@ impl Graphics {
         &mut self,
         size: PhysicalSize<u32>,
         world: &mut World,
-        resources: &mut Resources,
+        _resources: &mut Resources,
     ) -> Result<()> {
         // Recreate the swap chain with the new size
         self.sc_desc.width = size.width;
@@ -42,13 +53,8 @@ impl Graphics {
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
 
         // Let all the render passes resize their internal buffers
-        self.mesh_pass.resize(
-            &mut self.device,
-            &mut self.queue,
-            &mut self.sc_desc,
-            world,
-            &resources,
-        )?;
+        self.mesh_pass
+            .resize(&mut self.device, &mut self.queue, &mut self.sc_desc, world)?;
 
         Ok(())
     }
@@ -65,21 +71,23 @@ impl Graphics {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         // Render onto the frame with render passes
-        self.mesh_pass.render(
-            &mut self.device,
-            &mut self.queue,
-            &mut encoder,
-            &mut frame,
-            &world,
-            &resources,
-        )?;
+        if let Some(_) = resources.get::<MeshPassEnable>() {
+            self.mesh_pass.render(
+                &self.device,
+                &self.queue,
+                &mut encoder,
+                &mut frame,
+                &world,
+                &resources,
+            )?;
+        }
 
         self.queue.submit(Some(encoder.finish()));
         Ok(())
     }
 
     pub fn upload_texture(
-        device: &mut wgpu::Device,
+        device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
         srgb: bool,
         img: image::RgbaImage,

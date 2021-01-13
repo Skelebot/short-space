@@ -6,11 +6,13 @@ pub mod settings;
 use data::{MaterialData, Scene};
 use eyre::{eyre::eyre, eyre::WrapErr, Result};
 use legion::World;
+use nc::pipeline::object;
 use std::path::{Path, PathBuf};
 
 use crate::{
-    graphics::{color, mesh_pass::Vertex, Graphics, RenderMesh},
+    graphics::{color, mesh_pass::Vertex, Graphics, GraphicsShared, RenderMesh},
     spacetime::{self, Child},
+    states::Scoped,
 };
 
 use wavefront_obj as wobj;
@@ -49,7 +51,13 @@ impl AssetLoader {
     }
 
     // See Self::load
-    pub fn load_scene(&self, world: &mut World, graphics: &mut Graphics, path: &str) -> Result<()> {
+    pub fn load_scene(
+        &self,
+        world: &mut World,
+        graphics: &GraphicsShared,
+        path: &str,
+        scoped: Option<Scoped>,
+    ) -> Result<()> {
         let scene = self.load::<Scene>(&path)?;
 
         // Create a (temporary) CommandEncoder for loading data to GPU
@@ -72,21 +80,21 @@ impl AssetLoader {
                 .map(|mesh_data| {
                     RenderMesh::from_parts(
                         mesh_data.parts,
-                        &graphics.mesh_pass,
-                        &mut graphics.device,
+                        &graphics.mesh_layouts,
+                        &graphics.device,
                         &mut encoder,
                     )
                 })
                 .for_each(|render_mesh| {
                     let pos: spacetime::Position = object.pos.into();
                     debug!("pos: {:?}", pos);
-                    let e = if let Some(scale) = object.scale {
-                        let scale: spacetime::Scale = scale.into();
-                        world.push((pos, scale, render_mesh))
-                    } else {
-                        world.push((pos, render_mesh))
+                    let ent = match (object.scale, scoped) {
+                        (Some(scale), Some(scope)) => world.push((pos, scale, render_mesh, scope)),
+                        (Some(scale), None) => world.push((pos, scale, render_mesh)),
+                        (None, Some(scope)) => world.push((pos, render_mesh, scope)),
+                        (None, None) => world.push((pos, render_mesh)),
                     };
-                    index_entity.push((i, e))
+                    index_entity.push((i, ent))
                 });
         }
 
@@ -101,8 +109,8 @@ impl AssetLoader {
                 .map(|mesh_data| {
                     RenderMesh::from_parts(
                         mesh_data.parts,
-                        &graphics.mesh_pass,
-                        &mut graphics.device,
+                        &graphics.mesh_layouts,
+                        &graphics.device,
                         &mut encoder,
                     )
                 })
@@ -113,11 +121,13 @@ impl AssetLoader {
                         offset: na::Isometry3::identity().into(),
                         parent: *parent_entity,
                     };
-                    if let Some(scale) = object.scale {
-                        let scale: spacetime::Scale = scale.into();
-                        world.push((pos, scale, child, render_mesh))
-                    } else {
-                        world.push((pos, child, render_mesh))
+                    let ent = match (object.scale, scoped) {
+                        (Some(scale), Some(scope)) => {
+                            world.push((pos, scale, render_mesh, child, scope))
+                        }
+                        (Some(scale), None) => world.push((pos, scale, render_mesh, child)),
+                        (None, Some(scope)) => world.push((pos, render_mesh, child, scope)),
+                        (None, None) => world.push((pos, render_mesh, child)),
                     };
                 });
         }
