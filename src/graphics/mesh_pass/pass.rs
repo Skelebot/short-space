@@ -3,7 +3,7 @@ use legion::{IntoQuery, Resources, World};
 use spacetime::PhysicsTimer;
 use wgpu::util::DeviceExt;
 
-use crate::graphics::{Camera, Pass};
+use crate::graphics::{Camera, GraphicsShared, Pass};
 use crate::{assets::AssetLoader, player::Atlas, spacetime};
 
 use super::{material::MaterialShading, pipeline::MeshPipeline, GlobalUniforms, RenderMesh};
@@ -189,12 +189,12 @@ impl MeshPass {
 impl Pass for MeshPass {
     fn resize(
         &mut self,
-        device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        sc_desc: &mut wgpu::SwapChainDescriptor,
+        graphics: &GraphicsShared,
+        sc_desc: &wgpu::SwapChainDescriptor,
         world: &mut legion::World,
+        _resources: &mut legion::Resources,
     ) -> Result<()> {
-        self.depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+        self.depth_texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
             size: wgpu::Extent3d {
                 width: sc_desc.width,
@@ -220,14 +220,13 @@ impl Pass for MeshPass {
     }
     fn render(
         &mut self,
-        _device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        graphics: &GraphicsShared,
         encoder: &mut wgpu::CommandEncoder,
         // Usually the frame
         target: &mut wgpu::SwapChainTexture,
         world: &legion::World,
         resources: &legion::Resources,
-    ) -> Result<()> {
+    ) {
         let lerp = {
             let physics_timer = resources.get::<PhysicsTimer>().unwrap();
             physics_timer.lerp() as f32
@@ -247,7 +246,7 @@ impl Pass for MeshPass {
                 view_proj: view_proj.into(),
                 camera_pos: cam_pos.translation.vector.into(),
             };
-            queue.write_buffer(
+            graphics.queue.write_buffer(
                 &self.global_uniform_buf,
                 0,
                 bytemuck::bytes_of(&global_uniforms),
@@ -266,7 +265,9 @@ impl Pass for MeshPass {
                 transform = transform.prepend_nonuniform_scaling(scale);
             }
             let transform: [[f32; 4]; 4] = transform.into();
-            queue.write_buffer(&rmesh.uniform_buf, 0, bytemuck::bytes_of(&transform));
+            graphics
+                .queue
+                .write_buffer(&rmesh.uniform_buf, 0, bytemuck::bytes_of(&transform));
         }
 
         // Begin rendering
@@ -330,7 +331,5 @@ impl Pass for MeshPass {
             }
         }
         encoder.pop_debug_group();
-
-        Ok(())
     }
 }

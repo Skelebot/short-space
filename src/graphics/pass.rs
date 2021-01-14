@@ -1,21 +1,22 @@
 use eyre::Result;
 use legion::{Resources, World};
 
+use super::GraphicsShared;
+
 pub trait Pass {
     fn resize(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        sc_desc: &mut wgpu::SwapChainDescriptor,
-        _world: &mut World,
+        graphics: &GraphicsShared,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        world: &mut World,
+        resources: &mut Resources,
     ) -> Result<()>;
     fn render(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        graphics: &GraphicsShared,
         encoder: &mut wgpu::CommandEncoder,
         target: &mut wgpu::SwapChainTexture,
-        _world: &World,
-        _resources: &Resources,
-    ) -> Result<()>;
+        world: &World,
+        resources: &Resources,
+    );
 }

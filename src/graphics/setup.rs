@@ -6,7 +6,11 @@ use winit::{event_loop::EventLoop, window::Window};
 
 use crate::state::CustomEvent;
 
-use super::{mesh_pass::MeshPass, Graphics};
+use super::{
+    mesh_pass::{MeshLayouts, MeshPass},
+    ui_pass::UiPass,
+    Graphics, GraphicsShared,
+};
 
 pub async fn setup(
     world: &mut World,
@@ -64,27 +68,48 @@ pub async fn setup(
         format: swapchain_format,
         width: size.width,
         height: size.height,
+        present_mode: wgpu::PresentMode::Immediate,
         // Wait for vsync, but do not cap framerate
         //present_mode: wgpu::PresentMode::Mailbox,
         // Wait for vsync AND cap framerate
-        present_mode: wgpu::PresentMode::Fifo,
+        //present_mode: wgpu::PresentMode::Fifo,
     };
 
     let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
 
     // Initialize render passes
-
     let mesh_pass = MeshPass::new(&device, &swap_chain_desc, world, resources)?;
+    let ui_pass = UiPass::new(&device, &swap_chain_desc, &window, &queue, world, resources)?;
+
+    let device = Rc::new(device);
+    let queue = Rc::new(queue);
+    let window = Rc::new(window);
+
+    // Insert related resources
+    resources.insert(event_loop.create_proxy());
+    let shared = GraphicsShared {
+        device: device.clone(),
+        queue: queue.clone(),
+        window: window.clone(),
+        // TODO: Do something about those layouts
+        mesh_layouts: MeshLayouts {
+            mesh: mesh_pass.mesh_bind_group_layout.clone(),
+            material: mesh_pass.pipelines.clone(),
+        },
+    };
+    resources.insert(shared.clone());
 
     Ok((
         Graphics {
-            device: Rc::new(device),
-            queue: Rc::new(queue),
-            window: Rc::new(window),
+            device,
+            queue,
+            window,
             mesh_pass,
+            ui_pass,
             swap_chain,
             sc_desc: swap_chain_desc,
             surface,
+            shared,
         },
         event_loop,
     ))

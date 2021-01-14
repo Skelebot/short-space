@@ -3,6 +3,7 @@ use std::rc::Rc;
 use eyre::{eyre::WrapErr, Result};
 use legion::{Resources, World};
 use mesh_pass::MeshPass;
+use ui_pass::UiPass;
 use winit::dpi::PhysicalSize;
 
 use wgpu::util::DeviceExt;
@@ -20,8 +21,15 @@ pub use pass::Pass;
 
 pub mod mesh_pass;
 pub use mesh_pass::RenderMesh;
+
+use crate::spacetime::Time;
+
+pub mod ui_pass;
+
 pub struct MeshPassEnable;
 
+// It's all pointers either way
+#[derive(Clone)]
 pub struct GraphicsShared {
     pub device: Rc<wgpu::Device>,
     pub queue: Rc<wgpu::Queue>,
@@ -34,27 +42,41 @@ pub struct Graphics {
     pub queue: Rc<wgpu::Queue>,
     pub window: Rc<winit::window::Window>,
     pub mesh_pass: MeshPass,
+    pub ui_pass: UiPass,
 
     pub swap_chain: wgpu::SwapChain,
     pub sc_desc: wgpu::SwapChainDescriptor,
     pub surface: wgpu::Surface,
+
+    pub shared: GraphicsShared,
 }
 
 impl Graphics {
+    pub fn prepare(&mut self, resources: &mut Resources) {
+        let time = resources.get::<Time>().unwrap();
+        self.ui_pass
+            .ctx
+            .io_mut()
+            .update_delta_time(time.current.elapsed());
+    }
+
     pub fn resize(
         &mut self,
         size: PhysicalSize<u32>,
         world: &mut World,
-        _resources: &mut Resources,
+        resources: &mut Resources,
     ) -> Result<()> {
         // Recreate the swap chain with the new size
         self.sc_desc.width = size.width;
         self.sc_desc.height = size.height;
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
 
-        // Let all the render passes resize their internal buffers
+        // Tell all the render passes to resize their internal buffers
         self.mesh_pass
-            .resize(&self.device, &self.queue, &mut self.sc_desc, world)?;
+            .resize(&self.shared, &self.sc_desc, world, resources)?;
+        // Does nothing, resize is already handled when handling window events
+        self.ui_pass
+            .resize(&self.shared, &self.sc_desc, world, resources)?;
 
         Ok(())
     }
@@ -71,16 +93,13 @@ impl Graphics {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         // Render onto the frame with render passes
+
         if resources.get::<MeshPassEnable>().is_some() {
-            self.mesh_pass.render(
-                &self.device,
-                &self.queue,
-                &mut encoder,
-                &mut frame,
-                &world,
-                &resources,
-            )?;
+            self.mesh_pass
+                .render(&self.shared, &mut encoder, &mut frame, &world, &resources);
         }
+        self.ui_pass
+            .render(&self.shared, &mut encoder, &mut frame, &world, &resources);
 
         self.queue.submit(Some(encoder.finish()));
         Ok(())

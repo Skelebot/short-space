@@ -6,6 +6,7 @@ use crate::{assets::data::*, graphics::Graphics};
 
 use super::{material::*, pass::MeshPassPipelines, MeshUniforms};
 
+#[derive(Clone)]
 pub struct MeshLayouts {
     pub mesh: Rc<wgpu::BindGroupLayout>,
     pub material: Rc<MeshPassPipelines>,

@@ -18,7 +18,6 @@ mod state;
 mod tests;
 
 use assets::settings::GameSettings;
-use graphics::GraphicsShared;
 
 use eyre::Result;
 use legion::{Resources, World};
@@ -54,21 +53,6 @@ fn main() -> Result<()> {
     resources.insert(input_state);
     resources.insert(time);
 
-    resources.insert(event_loop.create_proxy());
-
-    // TODO: Do something about those layouts, it's horrible
-    let s = GraphicsShared {
-        device: graphics.device.clone(),
-        queue: graphics.queue.clone(),
-        window: graphics.window.clone(),
-        mesh_layouts: graphics::mesh_pass::MeshLayouts {
-            mesh: graphics.mesh_pass.mesh_bind_group_layout.clone(),
-            material: graphics.mesh_pass.pipelines.clone(),
-        },
-    };
-
-    resources.insert(s);
-
     let mut state_machine = StateMachine::new(state::main::MainState::new());
     state_machine.start(&mut world, &mut resources)?;
 
@@ -80,6 +64,8 @@ fn main() -> Result<()> {
                 // Reset input to values before any events get handled
                 // (for example zero the mouse delta)
                 input::prepare(&mut resources);
+                // Update UI frame timings
+                graphics.prepare(&mut resources);
                 // Update frame timings
                 spacetime::prepare(&mut resources);
             }
@@ -114,15 +100,16 @@ fn main() -> Result<()> {
             &Event::MainEventsCleared => {
                 state_machine.update(&mut world, &mut resources);
                 // Request rendering
-                graphics.window.request_redraw();
-            }
-            // Render the frame
-            &Event::RedrawRequested(_) => {
+                //graphics.window.request_redraw();
                 // Render
                 graphics.render(&mut world, &mut resources).unwrap();
             }
+            // Render the frame
+            &Event::RedrawRequested(_) => {}
             _ => {}
         }
+        // Handle events by UI
+        graphics.ui_pass.handle_event(&graphics.window, &event);
         state_machine.handle_event(&mut world, &mut resources, event);
     });
 }
