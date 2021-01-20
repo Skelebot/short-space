@@ -94,6 +94,21 @@ impl Graphics {
 
         // Render onto the frame with render passes
 
+        {
+            // Clear the frame
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &frame.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+        }
+
         if resources.get::<MeshPassEnable>().is_some() {
             self.mesh_pass
                 .render(&self.shared, &mut encoder, &mut frame, &world, &resources);

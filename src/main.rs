@@ -13,6 +13,7 @@ mod physics;
 mod player;
 mod spacetime;
 mod state;
+mod ui;
 
 #[cfg(test)]
 mod tests;

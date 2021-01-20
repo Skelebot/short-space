@@ -3,6 +3,7 @@ use legion::{Resources, Schedule, World};
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 
 use super::loading::LoadingState;
+use crate::ui::StartWindow;
 
 pub struct MainState {
     schedule: Schedule,
@@ -18,13 +19,27 @@ impl MainState {
 }
 
 impl State for MainState {
-    fn on_start(&mut self, _world: &mut World, _resources: &mut Resources) {}
+    fn on_start(&mut self, _world: &mut World, resources: &mut Resources) {
+        resources.insert(StartWindow {
+            opened: true,
+            play_pressed: false,
+            exit_pressed: false,
+        })
+    }
 
-    fn on_stop(&mut self, _world: &mut World, _resources: &mut Resources) {}
+    fn on_stop(&mut self, _world: &mut World, resources: &mut Resources) {
+        resources.remove::<StartWindow>();
+    }
 
-    fn on_pause(&mut self, _world: &mut World, _resources: &mut Resources) {}
+    fn on_pause(&mut self, _world: &mut World, resources: &mut Resources) {
+        resources.get_mut::<StartWindow>().unwrap().opened = false;
+    }
 
-    fn on_resume(&mut self, _world: &mut World, _resources: &mut Resources) {}
+    fn on_resume(&mut self, _world: &mut World, resources: &mut Resources) {
+        let mut start = resources.get_mut::<StartWindow>().unwrap();
+        start.opened = true;
+        start.play_pressed = false;
+    }
 
     fn handle_event(
         &mut self,
@@ -55,7 +70,7 @@ impl State for MainState {
                     // Doesn't matter
                     Transition::None
                 }
-                Some(VirtualKeyCode::N) => Transition::Push(Box::new(LoadingState::new())),
+                Some(VirtualKeyCode::Return) => Transition::Push(Box::new(LoadingState::new())),
                 _ => Transition::None,
             },
             _ => Transition::None,
@@ -63,6 +78,20 @@ impl State for MainState {
     }
 
     fn update(&mut self, world: &mut World, resources: &mut Resources) -> Transition {
+        {
+            let menu = resources.get::<StartWindow>().unwrap();
+            if menu.play_pressed {
+                return Transition::Push(Box::new(LoadingState::new()));
+            }
+            if menu.exit_pressed {
+                resources
+                    .get::<winit::event_loop::EventLoopProxy<CustomEvent>>()
+                    .unwrap()
+                    .send_event(CustomEvent::Exit)
+                    .unwrap();
+                return Transition::None;
+            }
+        }
         self.schedule.execute(world, resources);
         Transition::None
     }

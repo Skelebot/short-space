@@ -68,9 +68,9 @@ pub async fn setup(
         format: swapchain_format,
         width: size.width,
         height: size.height,
-        present_mode: wgpu::PresentMode::Immediate,
+        //present_mode: wgpu::PresentMode::Immediate,
         // Wait for vsync, but do not cap framerate
-        //present_mode: wgpu::PresentMode::Mailbox,
+        present_mode: wgpu::PresentMode::Mailbox,
         // Wait for vsync AND cap framerate
         //present_mode: wgpu::PresentMode::Fifo,
     };

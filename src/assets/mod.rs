@@ -135,7 +135,7 @@ impl AssetLoader {
     }
 
     pub fn load_str(&self, path: impl AsRef<Path>) -> Result<String> {
-        std::fs::read_to_string(&path)
+        std::fs::read_to_string(self.root_path.join(&path))
             .wrap_err_with(|| format!("File not found: {:?}", path.as_ref()))
     }
 

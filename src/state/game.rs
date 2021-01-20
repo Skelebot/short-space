@@ -79,7 +79,7 @@ impl State for GameState {
                     },
                 ..
             } => match code {
-                VirtualKeyCode::M => Transition::Pop,
+                VirtualKeyCode::Back => Transition::Pop,
                 VirtualKeyCode::Escape => {
                     // Pause the game
                     Transition::None
