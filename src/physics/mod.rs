@@ -36,16 +36,6 @@ pub fn step(
     }
 }
 
-// Linearly interpolate everything according to it's velocities
-#[system(for_each)]
-pub fn lerp(
-    #[resource] _p_timer: &PhysicsTimer,
-    //#[resource] physics_settings: &PhysicsSettings,
-    _position: &mut Position,
-    _velocity: &Velocity,
-) {
-}
-
 #[system]
 #[write_component(Position)]
 #[read_component(Child)]

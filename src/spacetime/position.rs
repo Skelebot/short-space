@@ -1,11 +1,14 @@
-/// A wrapper for nalgebra's Isometry to be used as a component for physical entities
+
 #[derive(Debug, Copy, Clone)]
 pub struct Position {
+    // Used only as a reference for lerp
     past: na::Isometry3<f32>,
+    // The "actual" position of the entity
     future: na::Isometry3<f32>,
 }
 
 impl Position {
+    /// Calculate the current position of the entity (in between physics steps)
     pub fn current(&self, lerp: f32) -> na::Isometry3<f32> {
         let translation = na::Translation3::from(
             self.past

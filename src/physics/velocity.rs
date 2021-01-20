@@ -91,7 +91,6 @@ impl<N: RealField> Velocity<N> {
     ///
     /// The linear part is stored first.    #[inline]
     pub fn as_vector(&self) -> &Vector6<N> {
-        // TODO: Make sure this works
         unsafe { &*(self as *const Velocity<N> as *const Vector6<N>) }
         //unsafe { mem::transmute(self) }
     }
@@ -100,7 +99,6 @@ impl<N: RealField> Velocity<N> {
     ///
     /// The linear part is stored first.    #[inline]
     pub fn as_vector_mut(&mut self) -> &mut Vector6<N> {
-        // TODO: Make sure this works
         unsafe { &mut *(self as *mut Velocity<N> as *mut Vector6<N>) }
         //unsafe { mem::transmute(self) }
     }

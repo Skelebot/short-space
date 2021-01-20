@@ -1,4 +1,18 @@
 #![allow(dead_code)]
+
+// TODO: The issue with players in the world
+// Option 1: Store player Entities (their indexes in the world) in Resources in a Vec, so we can fetch it once
+//           ans assume the first one in the vec is the Atlas (the player's player, the one that we control).
+// Option 2: Make use of world.insert_with_id(). When starting the game, reserve a number of entity "slots"
+//           in the world by inserting empty entities, which later (when connecting to a server or starting
+//           a singleplayer game) get populated with players and networked entities according to data which
+//           we get from a server.
+// Option 2 allows the server to nearly directly manage our world just by sending (id, delta-data) pairs, while
+// Option 1 avoids the slot-reserving part and is more extensible - every client can manage it's own world (think mods),
+// but puts more strain on the client side - the client needs to store indexes of all networked entities somewhere and
+// keep track of their relations. Option 1 is slower because it requires fetching from Resources AND translating
+// server-ids to client-ids. 2 is both easier to manage and faster, but requires a lot of things to be hardcoded, and
+// just isn't that extensible.
 #[derive(Debug)]
 pub struct Atlas {
     pub player: Entity,
@@ -51,25 +65,32 @@ pub fn player_movement(
     let mut player_query = <(&mut Player, &mut Position, &mut Velocity)>::query();
     let (player, position, velocity) = player_query.get_mut(world, atlas.player).unwrap();
 
-    // Rotate the player
-    let offset: na::Vector2<f32> =
-        input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta as f32;
+    // TODO: There is something wrong with all this - the rotation
+    // seems completely linear. Small movements of the mouse are okay,
+    // but bigger movements should rotate more. The rotation is a bit better
+    // if we square the rotation vector before applying it, but still feels
+    // wrong.
+    {
+        // Rotate the player
+        let offset: na::Vector2<f32> =
+            input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta as f32;
 
-    // TODO: Append rotations directly instead of creating new quaternions
-    let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), offset.x);
-    let xrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::x_axis(), offset.y);
+        // TODO: Append rotations directly instead of creating new quaternions
+        let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), offset.x);
+        let xrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::x_axis(), offset.y);
 
-    // Note: By changing the order of multiplications here, we can make the camera
-    // do all rotations around it's own relative axes (including the z axis),
-    // which would make it a full 3D-space camera. This actually isn't good
-    // in FPS games, where the player never has to "roll" the camera
-    // (rotate around relative x) To fix this, we rotate around the z axis last,
-    // so it's always the world's absolute z axis.
-    // To make a space-type camera, the z rotation should be performed first.
-    // Note 2: When multiplying transformations, the order is actually done backwards
-    // (xrot is the first rotation performed, because it's the last one in the multiplication)
+        // Note: By changing the order of multiplications here, we can make the camera
+        // do all rotations around it's own relative axes (including the z axis),
+        // which would make it a full 3D-space camera. This actually isn't good
+        // in FPS games, where the player never has to "roll" the camera
+        // (rotate around relative x) To fix this, we rotate around the z axis last,
+        // so it's always the world's absolute z axis.
+        // To make a space-type camera, the z rotation should be performed first.
+        // Note 2: When multiplying transformations, the order is actually done backwards
+        // (xrot is the first rotation performed, because it's the last one in the multiplication)
 
-    position.future_mut().rotation = zrot * position.future_mut().rotation * xrot;
+        position.future_mut().rotation = zrot * position.future_mut().rotation * xrot;
+    }
 
     // Finally, handle movement modes
     match player.state {
@@ -162,10 +183,6 @@ pub fn player_movement(
             // PM_GroundTrace();
             // PM_Weapon();
             // PM_Footsteps();
-            // Synchronize the camera's position with the player's
-            //let position = atlas_components.get_component::<Position>().unwrap();
-            // Double deref: first to strip the borrow, second to actually get the Isometry3
-            // TODO: Add player height
         }
     }
 }

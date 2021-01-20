@@ -62,7 +62,15 @@ impl State for LoadingState {
             ground_entity: None,
             flags: 0,
         };
-
+        
+        // TODO: The issue with players and cameras
+        // There are two ways to handle this:
+        // - Every client has a SINGLE camera (in Resources), which, when spectating, simply gets moved
+        //   around, and the rendering system always renders from it
+        // - Every player in the world has a camera bound to him, which would allow to make a spectator
+        //   mode that renders player point-of-views as tiles in a grid, or allow split-screen gameplay
+        // The former is easier to use and faster, the latter is more extensible and sometimes unwieldy.
+        
         // Scene
         let atlas_cam = {
             let graphics = resources.get::<GraphicsShared>().unwrap();

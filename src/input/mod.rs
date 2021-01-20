@@ -25,7 +25,7 @@ pub const UP_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::Space, VirtualKeyCo
 // TODO: Move to an ActionBindings struct and load it from a config file
 pub const SPRINT_ACTION: Action = Action::KeyboardAction(VirtualKeyCode::LShift);
 
-// TODO: Consider moving all of this to InputState and fetching it once in the event loop
+// TODO: Consider moving this to InputState and fetching it once in the event loop
 pub fn prepare(resources: &mut Resources) {
     let mut state = resources.get_mut::<InputState>().unwrap();
     state.mouse_delta = na::zero();

@@ -76,7 +76,6 @@ impl MeshMaterial {
                 .ok_or_else(|| eyre!("Cannot create a textured material without a texture"))?
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
-            // TODO: Review and customize
             let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
             device.create_bind_group(&wgpu::BindGroupDescriptor {

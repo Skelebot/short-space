@@ -22,7 +22,6 @@ impl GameState {
         let schedule = Schedule::builder()
             .add_system(crate::physics::step_system())
             .add_system(crate::player::player_movement_system())
-            .add_system(crate::physics::lerp_system())
             .add_system(crate::physics::children_update_system())
             .build();
         GameState { schedule }
