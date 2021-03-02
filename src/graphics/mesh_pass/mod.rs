@@ -18,7 +18,7 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    pub fn vertex_attrs() -> [wgpu::VertexAttributeDescriptor; 3] {
+    pub fn vertex_attrs() -> [wgpu::VertexAttribute; 3] {
         wgpu::vertex_attr_array![
             // Position
             0 => Float3,

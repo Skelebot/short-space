@@ -108,7 +108,12 @@ impl RenderMesh {
             layout: &layouts.mesh,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: wgpu::BindingResource::Buffer(uniform_buf.slice(..)),
+                resource: wgpu::BindingResource::Buffer {
+                    buffer: &uniform_buf,
+                    offset: 0,
+                    // FIXME
+                    size: None,
+                }, //resource: wgpu::BindingResource::Buffer(uniform_buf.slice(..)),
             }],
         });
 

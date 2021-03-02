@@ -68,7 +68,12 @@ impl MeshMaterial {
                 layout: &layouts.material.untextured.part_bind_group_layout,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer(factors_buf.slice(..)),
+                    resource: wgpu::BindingResource::Buffer {
+                        buffer: &factors_buf,
+                        offset: 0,
+                        // FIXME
+                        size: None,
+                    },
                 }],
             })
         } else {
@@ -84,7 +89,12 @@ impl MeshMaterial {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::Buffer(factors_buf.slice(..)),
+                        resource: wgpu::BindingResource::Buffer {
+                            buffer: &factors_buf,
+                            offset: 0,
+                            // FIXME
+                            size: None,
+                        },
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,

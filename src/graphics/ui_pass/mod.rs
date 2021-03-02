@@ -151,6 +151,7 @@ impl Pass for UiPass {
             }
             //ui.show_demo_window(&mut true);
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &target.view,
                     resolve_target: None,

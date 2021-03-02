@@ -1,5 +1,8 @@
+use std::ops::Index;
+
 use crate::assets::AssetLoader;
 use const_format::concatcp;
+use wgpu::{DepthBiasState, MultisampleState, PolygonMode};
 
 use super::{
     material::{MaterialFactors, MaterialShading},
@@ -26,8 +29,9 @@ macro_rules! bind_group_layout_entries {
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::UniformBuffer {
-                    dynamic: false,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
                     min_binding_size: wgpu::BufferSize::new(
                         std::mem::size_of::<MaterialFactors>() as wgpu::BufferAddress
                     ),
@@ -42,8 +46,9 @@ macro_rules! bind_group_layout_entries {
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::UniformBuffer {
-                    dynamic: false,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
                     min_binding_size: wgpu::BufferSize::new(
                         std::mem::size_of::<MaterialFactors>() as wgpu::BufferAddress
                     ),
@@ -54,17 +59,20 @@ macro_rules! bind_group_layout_entries {
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
                 visibility: wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::Sampler { comparison: false },
+                ty: wgpu::BindingType::Sampler {
+                    comparison: false,
+                    filtering: false,
+                },
                 count: None,
             },
             // Diffuse texture
             wgpu::BindGroupLayoutEntry {
                 binding: 2,
                 visibility: wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::SampledTexture {
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: wgpu::TextureViewDimension::D2,
                     multisampled: false,
-                    component_type: wgpu::TextureComponentType::Float,
-                    dimension: wgpu::TextureViewDimension::D2,
                 },
                 count: None,
             },
@@ -99,38 +107,43 @@ impl MeshPipeline {
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
+            vertex: wgpu::VertexState {
                 module: &vs_module,
                 entry_point: "main",
-            },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-                module: &fs_module,
-                entry_point: "main",
-            }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
-                ..Default::default()
-            }),
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-            color_states: &[sc_desc.format.into()],
-            depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilStateDescriptor::default(),
-            }),
-            vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint32,
-                vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                    stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                     step_mode: wgpu::InputStepMode::Vertex,
                     attributes: &Vertex::vertex_attrs(),
                 }],
             },
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: Some(wgpu::IndexFormat::Uint32),
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::Back,
+                // TODO: Configuration?
+                polygon_mode: PolygonMode::Fill,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+                // TODO: DEPTH_CLAMPING feature
+                clamp_depth: false,
+            }),
+            // TODO: Multisample antialiasing
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &fs_module,
+                entry_point: "main",
+                targets: &[sc_desc.format.into()],
+            }),
         });
         MeshPipeline {
             part_bind_group_layout,
@@ -146,52 +159,60 @@ impl MeshPipeline {
         mesh_bind_group_layout: &wgpu::BindGroupLayout,
         asset_loader: &AssetLoader,
     ) -> Self {
-        let vs_module = device.create_shader_module(wgpu::util::make_spirv(
-            &asset_loader
-                .load_bytes(concatcp!(
-                    COMPILED_SHADERS_DIR,
-                    MESH_VERTEX_SHADER_NAME,
-                    COMPILED_VERTEX_SHADER_EXT
-                ))
-                .unwrap(),
-        ));
+        let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::util::make_spirv(
+                &asset_loader
+                    .load_bytes(concatcp!(
+                        COMPILED_SHADERS_DIR,
+                        MESH_VERTEX_SHADER_NAME,
+                        COMPILED_VERTEX_SHADER_EXT
+                    ))
+                    .unwrap(),
+            ),
+            flags: wgpu::ShaderFlags::default(),
+        });
         use MaterialShading::*;
-        let fs_module = device.create_shader_module(wgpu::util::make_spirv(
-            &asset_loader
-                .load_bytes(match ty {
-                    Untextured => concatcp!(
-                        COMPILED_SHADERS_DIR,
-                        UNTEXTURED_SHADER_NAME,
-                        COMPILED_FRAGMENT_SHADER_EXT
-                    ),
-                    UntexturedUnlit => concatcp!(
-                        COMPILED_SHADERS_DIR,
-                        UNTEXTURED_UNLIT_SHADER_NAME,
-                        COMPILED_FRAGMENT_SHADER_EXT
-                    ),
-                    Textured => concatcp!(
-                        COMPILED_SHADERS_DIR,
-                        TEXTURED_SHADER_NAME,
-                        COMPILED_FRAGMENT_SHADER_EXT
-                    ),
-                    TexturedUnlit => concatcp!(
-                        COMPILED_SHADERS_DIR,
-                        TEXTURED_UNLIT_SHADER_NAME,
-                        COMPILED_FRAGMENT_SHADER_EXT
-                    ),
-                    TexturedEmissive => concatcp!(
-                        COMPILED_SHADERS_DIR,
-                        TEXTURED_EMISSIVE_SHADER_NAME,
-                        COMPILED_FRAGMENT_SHADER_EXT
-                    ),
-                    UntexturedEmissive => concatcp!(
-                        COMPILED_SHADERS_DIR,
-                        UNTEXTURED_EMISSIVE_SHADER_NAME,
-                        COMPILED_FRAGMENT_SHADER_EXT
-                    ),
-                })
-                .unwrap(),
-        ));
+        let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::util::make_spirv(
+                &asset_loader
+                    .load_bytes(match ty {
+                        Untextured => concatcp!(
+                            COMPILED_SHADERS_DIR,
+                            UNTEXTURED_SHADER_NAME,
+                            COMPILED_FRAGMENT_SHADER_EXT
+                        ),
+                        UntexturedUnlit => concatcp!(
+                            COMPILED_SHADERS_DIR,
+                            UNTEXTURED_UNLIT_SHADER_NAME,
+                            COMPILED_FRAGMENT_SHADER_EXT
+                        ),
+                        Textured => concatcp!(
+                            COMPILED_SHADERS_DIR,
+                            TEXTURED_SHADER_NAME,
+                            COMPILED_FRAGMENT_SHADER_EXT
+                        ),
+                        TexturedUnlit => concatcp!(
+                            COMPILED_SHADERS_DIR,
+                            TEXTURED_UNLIT_SHADER_NAME,
+                            COMPILED_FRAGMENT_SHADER_EXT
+                        ),
+                        TexturedEmissive => concatcp!(
+                            COMPILED_SHADERS_DIR,
+                            TEXTURED_EMISSIVE_SHADER_NAME,
+                            COMPILED_FRAGMENT_SHADER_EXT
+                        ),
+                        UntexturedEmissive => concatcp!(
+                            COMPILED_SHADERS_DIR,
+                            UNTEXTURED_EMISSIVE_SHADER_NAME,
+                            COMPILED_FRAGMENT_SHADER_EXT
+                        ),
+                    })
+                    .unwrap(),
+            ),
+            flags: wgpu::ShaderFlags::default(),
+        });
 
         let part_bind_group_layout = if ty.is_textured() {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

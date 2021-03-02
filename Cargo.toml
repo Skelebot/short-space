@@ -7,37 +7,37 @@ edition = "2018"
 
 [dependencies]
 # Graphics
-wgpu = "0.6.2"
-winit = { version = "0.24.0", default_features = false, features = ["x11"] }
-imgui = "0.6.1"
+wgpu = "0.7"
+winit = { version = "0.24", default_features = false, features = ["x11"] }
+imgui = "0.7"
 
 # Math
-nalgebra = "0.24.0"
+nalgebra = "0.24"
 
 # Physics
-ncollide3d = "0.27.0"
+ncollide3d = "0.27"
 
 # File loading
-serde = "1.0.118"
+serde = "1.0"
 ron = "0.6.4"
-image = "0.23.12"
+image = "0.23"
 
 # Data loading
-bytemuck = { version = "1.4.1", features = ["derive"] }
+bytemuck = { version = "1.5", features = ["derive"] }
 
 # Misc
-const_format = "0.2.12"
-futures = "0.3.9"
-env_logger = "0.8.2"
-log = "0.4.13"
+const_format = "0.2"
+futures = "0.3"
+env_logger = "0.8"
+log = "0.4"
 
 # Error handling
-color-eyre = "0.5.10"
-imgui-winit-support = "0.6.1"
-imgui-wgpu = "0.12.0"
+color-eyre = "0.5"
+imgui-winit-support = "0.7"
+imgui-wgpu = "0.14"
 
 [dependencies.legion]
-version = "0.3.1"
+version = "0.3"
 #features = ["extended-tuple-impls"]
 
 [dependencies.wavefront_obj]
@@ -45,8 +45,8 @@ git = "https://github.com/Skelebot/wavefront_obj"
 
 [build-dependencies]
 # Used for copying the assets dir to the target dir for testing
-walkdir = "2.3.1"
+walkdir = "2.3"
 
 [dev-dependencies]
 # For relative-comparing floats in tests
-approx = "0.4.0"
+approx = "0.4"

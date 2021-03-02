@@ -53,9 +53,9 @@ pub async fn setup(
     let (device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
+                label: None,
                 features: wgpu::Features::default(),
                 limits: wgpu::Limits::default(),
-                shader_validation: true,
             },
             trace_dir.ok().as_ref().map(std::path::Path::new),
         )
@@ -64,15 +64,15 @@ pub async fn setup(
 
     let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let swap_chain_desc = wgpu::SwapChainDescriptor {
-        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
         format: swapchain_format,
         width: size.width,
         height: size.height,
         //present_mode: wgpu::PresentMode::Immediate,
         // Wait for vsync, but do not cap framerate
-        present_mode: wgpu::PresentMode::Mailbox,
+        //present_mode: wgpu::PresentMode::Mailbox,
         // Wait for vsync AND cap framerate
-        //present_mode: wgpu::PresentMode::Fifo,
+        present_mode: wgpu::PresentMode::Fifo,
     };
 
     let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);

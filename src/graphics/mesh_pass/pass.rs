@@ -47,8 +47,9 @@ impl MeshPass {
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
                         visibility: wgpu::ShaderStage::VERTEX,
-                        ty: wgpu::BindingType::UniformBuffer {
-                            dynamic: false,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
                             min_binding_size: None,
                         },
                         count: None,
@@ -65,8 +66,9 @@ impl MeshPass {
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
                         visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::UniformBuffer {
-                            dynamic: false,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
                             min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
                                 GlobalUniforms,
                             >()
@@ -94,7 +96,12 @@ impl MeshPass {
             layout: &global_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: wgpu::BindingResource::Buffer(global_uniform_buf.slice(..)),
+                resource: wgpu::BindingResource::Buffer {
+                    buffer: &global_uniform_buf,
+                    offset: 0,
+                    // FIXME
+                    size: None,
+                },
             }],
         });
 
@@ -110,7 +117,7 @@ impl MeshPass {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
         });
 
         let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -205,7 +212,7 @@ impl Pass for MeshPass {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
         });
         self.depth_texture_view = self
             .depth_texture
@@ -276,6 +283,7 @@ impl Pass for MeshPass {
         encoder.push_debug_group("forward rendering pass");
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 // Clear the frame
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &target.view,
@@ -324,7 +332,8 @@ impl Pass for MeshPass {
                     });
 
                     render_pass.set_bind_group(2, &part.material.bind_group, &[]);
-                    render_pass.set_index_buffer(part.index_buf.slice(..));
+                    render_pass
+                        .set_index_buffer(part.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.set_vertex_buffer(0, part.vertex_buf.slice(..));
                     render_pass.draw_indexed(0..part.index_count as u32, 0, 0..1);
                 }

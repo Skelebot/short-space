@@ -4,3 +4,4 @@ vogltrace.*
 builds
 *.bkp
 assets/shaders/compiled
+imgui.ini
