@@ -7,6 +7,7 @@ use winit::{event_loop::EventLoop, window::Window};
 use crate::state::CustomEvent;
 
 use super::{
+    debug_pass::DebugPass,
     mesh_pass::{MeshLayouts, MeshPass},
     ui_pass::UiPass,
     Graphics, GraphicsShared,
@@ -80,6 +81,7 @@ pub async fn setup(
     // Initialize render passes
     let mesh_pass = MeshPass::new(&device, &swap_chain_desc, world, resources)?;
     let ui_pass = UiPass::new(&device, &swap_chain_desc, &window, &queue, world, resources)?;
+    let debug_pass = DebugPass::new(&device, &swap_chain_desc, &window, &queue, world, resources)?;
 
     let device = Rc::new(device);
     let queue = Rc::new(queue);
@@ -99,6 +101,23 @@ pub async fn setup(
     };
     resources.insert(shared.clone());
 
+    // Depth testing
+    let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("depth texture"),
+        size: wgpu::Extent3d {
+            width: swap_chain_desc.width,
+            height: swap_chain_desc.height,
+            depth: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth32Float,
+        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+    });
+
+    let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
     Ok((
         Graphics {
             device,
@@ -106,10 +125,13 @@ pub async fn setup(
             window,
             mesh_pass,
             ui_pass,
+            debug_pass: Some(debug_pass),
             swap_chain,
             sc_desc: swap_chain_desc,
             surface,
             shared,
+            depth_texture,
+            depth_texture_view,
         },
         event_loop,
     ))

@@ -60,23 +60,3 @@ impl Default for Time {
         }
     }
 }
-
-#[test]
-fn test_physics_timer() {
-    let mut t = PhysicsTimer::new(2.0);
-
-    t.update(1.0);
-
-    assert_eq!(t.lerp(), 0.5);
-    assert_eq!(t.steps_due(), 0);
-
-    t.update(2.0);
-
-    assert_eq!(t.lerp(), 0.5);
-    assert_eq!(t.steps_due(), 1);
-
-    t.update(5.0);
-
-    assert_eq!(t.lerp(), 0.0);
-    assert_eq!(t.steps_due(), 3);
-}

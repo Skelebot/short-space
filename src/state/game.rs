@@ -7,7 +7,7 @@ use crate::{
     spacetime::PhysicsTimer,
     state::*,
 };
-use graphics::{GraphicsShared, MeshPassEnable};
+use graphics::{color::Rgba, debug_pass::DebugLines, GraphicsShared, MeshPassEnable};
 use legion::{Entity, Resources, Schedule, World};
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 
@@ -31,6 +31,33 @@ impl GameState {
 impl State for GameState {
     fn on_start(&mut self, _world: &mut World, resources: &mut Resources) {
         resources.insert(MeshPassEnable);
+        // Insert debug lines
+        {
+            let mut debug_lines = DebugLines::new();
+            debug_lines.thickness = 3.0;
+            debug_lines.push_line(
+                na::Vector3::repeat(0.0),
+                na::Vector3::new(0.0, 0.0, 10.0),
+                Rgba::new(0.0, 0.0, 1.0, 1.0),
+            );
+            debug_lines.push_line(
+                na::Vector3::repeat(0.0),
+                na::Vector3::new(10.0, 0.0, 0.0),
+                Rgba::new(1.0, 0.0, 0.0, 1.0),
+            );
+            debug_lines.push_line(
+                na::Vector3::repeat(0.0),
+                na::Vector3::new(0.0, 10.0, 0.0),
+                Rgba::new(0.0, 1.0, 0.0, 1.0),
+            );
+            debug_lines.push_line_gradient(
+                na::Vector3::repeat(0.0),
+                na::Vector3::repeat(10.0),
+                Rgba::new(1.0, 0.0, 1.0, 1.0),
+                Rgba::new(0.0, 1.0, 1.0, 1.0),
+            );
+            resources.insert(debug_lines);
+        }
         let graphics = resources.get::<GraphicsShared>().unwrap();
         graphics.window.set_cursor_grab(true).unwrap();
         graphics.window.set_cursor_visible(false);

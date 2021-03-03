@@ -1,4 +1,4 @@
-use eyre::Result;
+use eyre::{eyre::anyhow, Result};
 use legion::{IntoQuery, Resources, World};
 use spacetime::PhysicsTimer;
 use wgpu::util::DeviceExt;
@@ -25,10 +25,6 @@ pub struct MeshPass {
     pub mesh_bind_group_layout: std::rc::Rc<wgpu::BindGroupLayout>,
 
     pub pipelines: std::rc::Rc<MeshPassPipelines>,
-
-    depth_texture: wgpu::Texture,
-    // For clearing
-    depth_texture_view: wgpu::TextureView,
 }
 
 impl MeshPass {
@@ -105,28 +101,11 @@ impl MeshPass {
             }],
         });
 
-        // Depth testing
-        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("depth texture"),
-            size: wgpu::Extent3d {
-                width: sc_desc.width,
-                height: sc_desc.height,
-                depth: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-        });
-
-        let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
         // For loading shaders
         let pipelines = {
             let asset_loader = resources
                 .get::<AssetLoader>()
-                .expect("Asset loader not found, cannot load shaders");
+                .ok_or_else(|| anyhow!("Asset loader not found, cannot load shaders"))?;
             MeshPassPipelines {
                 untextured: MeshPipeline::shaded(
                     MaterialShading::Untextured,
@@ -185,8 +164,6 @@ impl MeshPass {
             global_uniform_buf,
             pipelines: std::rc::Rc::new(pipelines),
             mesh_bind_group_layout: std::rc::Rc::new(mesh_bind_group_layout),
-            depth_texture,
-            depth_texture_view,
         };
 
         Ok(mesh_pass)
@@ -196,28 +173,11 @@ impl MeshPass {
 impl Pass for MeshPass {
     fn resize(
         &mut self,
-        graphics: &GraphicsShared,
+        _graphics: &GraphicsShared,
         sc_desc: &wgpu::SwapChainDescriptor,
         world: &mut legion::World,
         _resources: &mut legion::Resources,
     ) -> Result<()> {
-        self.depth_texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("depth texture"),
-            size: wgpu::Extent3d {
-                width: sc_desc.width,
-                height: sc_desc.height,
-                depth: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-        });
-        self.depth_texture_view = self
-            .depth_texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
         // Update every camera's aspect ratio
         let mut query = <&mut Camera>::query();
         query.for_each_mut(world, |camera| {
@@ -233,6 +193,7 @@ impl Pass for MeshPass {
         target: &mut wgpu::SwapChainTexture,
         world: &legion::World,
         resources: &legion::Resources,
+        depth_texture_view: &wgpu::TextureView,
     ) {
         let lerp = {
             let physics_timer = resources.get::<PhysicsTimer>().unwrap();
@@ -290,21 +251,16 @@ impl Pass for MeshPass {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         // Clear the framebuffer with a color
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.01,
-                            g: 0.01,
-                            b: 0.01,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Load,
                         store: true,
                     },
                 }],
                 // Clear the depth buffer
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                    attachment: &self.depth_texture_view,
+                    attachment: depth_texture_view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: false,
+                        load: wgpu::LoadOp::Load,
+                        store: true,
                     }),
                     stencil_ops: None,
                 }),

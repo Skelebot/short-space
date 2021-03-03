@@ -7,7 +7,6 @@ layout (location = 2) in vec2 a_TexCoord;
 layout (set = 0, binding = 0) uniform Globals {
     mat4 u_ViewProj;
     vec3 u_CamPos;
-    uint u_NumLights;
 };
 layout (set = 1, binding = 0) uniform Mesh {
     mat4 u_Model;

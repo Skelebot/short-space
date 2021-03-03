@@ -1,17 +1,14 @@
-use std::ops::Index;
-
 use crate::assets::AssetLoader;
 use const_format::concatcp;
-use wgpu::{DepthBiasState, MultisampleState, PolygonMode};
 
 use super::{
     material::{MaterialFactors, MaterialShading},
     Vertex,
 };
 
-const COMPILED_SHADERS_DIR: &str = "shaders/compiled/";
-const COMPILED_VERTEX_SHADER_EXT: &str = ".vert.spv";
-const COMPILED_FRAGMENT_SHADER_EXT: &str = ".frag.spv";
+use crate::graphics::{
+    COMPILED_FRAGMENT_SHADER_EXT, COMPILED_SHADERS_DIR, COMPILED_VERTEX_SHADER_EXT,
+};
 
 const MESH_VERTEX_SHADER_NAME: &str = "mesh";
 
@@ -122,7 +119,7 @@ impl MeshPipeline {
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::Back,
                 // TODO: Configuration?
-                polygon_mode: PolygonMode::Fill,
+                polygon_mode: wgpu::PolygonMode::Fill,
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,

@@ -1,5 +1,3 @@
-extern crate image;
-
 pub mod data;
 pub mod settings;
 

@@ -18,5 +18,6 @@ pub trait Pass {
         target: &mut wgpu::SwapChainTexture,
         world: &World,
         resources: &Resources,
+        depth_texture_view: &wgpu::TextureView,
     );
 }

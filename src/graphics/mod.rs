@@ -1,9 +1,8 @@
 use std::rc::Rc;
 
+use crate::spacetime::Time;
 use eyre::{eyre::WrapErr, Result};
 use legion::{Resources, World};
-use mesh_pass::MeshPass;
-use ui_pass::UiPass;
 use winit::dpi::PhysicalSize;
 
 use wgpu::util::DeviceExt;
@@ -20,13 +19,20 @@ mod pass;
 pub use pass::Pass;
 
 pub mod mesh_pass;
+use mesh_pass::MeshPass;
 pub use mesh_pass::RenderMesh;
 
-use crate::spacetime::Time;
+pub mod debug_pass;
+pub use debug_pass::DebugPass;
 
 pub mod ui_pass;
+use ui_pass::UiPass;
 
 pub struct MeshPassEnable;
+
+pub const COMPILED_SHADERS_DIR: &str = "shaders/compiled/";
+pub const COMPILED_VERTEX_SHADER_EXT: &str = ".vert.spv";
+pub const COMPILED_FRAGMENT_SHADER_EXT: &str = ".frag.spv";
 
 // It's all pointers either way
 #[derive(Clone)]
@@ -43,10 +49,14 @@ pub struct Graphics {
     pub window: Rc<winit::window::Window>,
     pub mesh_pass: MeshPass,
     pub ui_pass: UiPass,
+    pub debug_pass: Option<DebugPass>,
 
     pub swap_chain: wgpu::SwapChain,
     pub sc_desc: wgpu::SwapChainDescriptor,
     pub surface: wgpu::Surface,
+
+    depth_texture: wgpu::Texture,
+    depth_texture_view: wgpu::TextureView,
 
     pub shared: GraphicsShared,
 }
@@ -70,6 +80,24 @@ impl Graphics {
         self.sc_desc.width = size.width;
         self.sc_desc.height = size.height;
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+
+        // Resize the depth texture
+        self.depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("depth texture"),
+            size: wgpu::Extent3d {
+                width: self.sc_desc.width,
+                height: self.sc_desc.height,
+                depth: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+        });
+        self.depth_texture_view = self
+            .depth_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         // Tell all the render passes to resize their internal buffers
         self.mesh_pass
@@ -102,20 +130,57 @@ impl Graphics {
                     attachment: &frame.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        // Clear the framebuffer with a color
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.01,
+                            g: 0.01,
+                            b: 0.01,
+                            a: 1.0,
+                        }),
                         store: true,
                     },
                 }],
-                depth_stencil_attachment: None,
+                // Clear the depth buffer
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
+                    attachment: &self.depth_texture_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: false,
+                    }),
+                    stencil_ops: None,
+                }),
             });
         }
 
         if resources.get::<MeshPassEnable>().is_some() {
-            self.mesh_pass
-                .render(&self.shared, &mut encoder, &mut frame, &world, &resources);
+            self.mesh_pass.render(
+                &self.shared,
+                &mut encoder,
+                &mut frame,
+                &world,
+                &resources,
+                &self.depth_texture_view,
+            );
+            // DebugPass needs the lerp value which is present only after the MeshPass is activated
+            if let Some(debug_pass) = &mut self.debug_pass {
+                debug_pass.render(
+                    &self.shared,
+                    &mut encoder,
+                    &mut frame,
+                    &world,
+                    &resources,
+                    &self.depth_texture_view,
+                );
+            }
         }
-        self.ui_pass
-            .render(&self.shared, &mut encoder, &mut frame, &world, &resources);
+        self.ui_pass.render(
+            &self.shared,
+            &mut encoder,
+            &mut frame,
+            &world,
+            &resources,
+            &self.depth_texture_view,
+        );
 
         self.queue.submit(Some(encoder.finish()));
         Ok(())

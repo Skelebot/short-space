@@ -129,6 +129,7 @@ impl Pass for UiPass {
         target: &mut wgpu::SwapChainTexture,
         _world: &legion::World,
         resources: &legion::Resources,
+        _depth_texture_view: &wgpu::TextureView,
     ) {
         self.platform
             .prepare_frame(self.ctx.io_mut(), &graphics.window)
