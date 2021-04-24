@@ -1,6 +1,6 @@
 GameSettings (
     noclip_speed: 30.0,
-    mouse_sensitivity: 0.5,
+    mouse_sensitivity: 20.0,
     sprint_multiplier: 2.0,
     vsync: true,
     window_width: 800,

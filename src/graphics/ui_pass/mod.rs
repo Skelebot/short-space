@@ -150,6 +150,19 @@ impl Pass for UiPass {
                         });
                 }
             }
+            // CONTINUE HERE
+            //if let Some(mut start) = resources.get_mut::<crate::ui::StartWindow>() {
+            //    if start.opened {
+            //        imgui::Window::new(im_str!(" Main menu"))
+            //            .size([200.0, 120.0], imgui::Condition::Once)
+            //            .collapsible(false)
+            //            .resizable(false)
+            //            .build(&ui, || {
+            //                start.play_pressed = ui.button(im_str!("Start"), [150.0, 30.0]);
+            //                start.exit_pressed = ui.button(im_str!("Exit"), [150.0, 30.0]);
+            //            });
+            //    }
+            //}
             //ui.show_demo_window(&mut true);
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,

@@ -95,6 +95,4 @@ impl State for MainState {
         self.schedule.execute(world, resources);
         Transition::None
     }
-
-    fn update_inactive(&mut self, _world: &mut World, _resources: &mut Resources) {}
 }

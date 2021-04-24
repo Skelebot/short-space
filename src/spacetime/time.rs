@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// An accumulator that counts up with every frame. When it exceeds PhysicsSettings.step_time,
 /// the next physics simulation occurs. Until then, it is effectively a measure of how much
@@ -39,15 +39,12 @@ impl PhysicsTimer {
 
 pub struct Time {
     pub current: Instant,
-    pub delta: f64,
+    pub delta: Duration,
 }
 
 impl Time {
     pub fn update(&mut self) {
-        let since = self.current.elapsed();
-        let delta = since.as_secs() as f64 + since.subsec_nanos() as f64 / 1_000_000_000.0;
-
-        self.delta = delta;
+        self.delta = self.current.elapsed();
         self.current = Instant::now();
     }
 }
@@ -56,7 +53,7 @@ impl Default for Time {
     fn default() -> Self {
         Time {
             current: Instant::now(),
-            delta: 0.0,
+            delta: Duration::default(),
         }
     }
 }

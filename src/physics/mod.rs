@@ -26,7 +26,7 @@ pub fn step(
     //#[resource] physics_settings: &PhysicsSettings,
     world: &mut SubWorld,
 ) {
-    p_timer.update(time.delta);
+    p_timer.update(time.delta.as_secs_f64());
     for _ in 0..p_timer.steps_due() {
         // Update Positions
         <&mut Position>::query().for_each_mut(world, |p| {

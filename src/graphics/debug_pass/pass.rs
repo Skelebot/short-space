@@ -4,13 +4,12 @@ use eyre::Result;
 use legion::{Resources, World};
 use wgpu::util::DeviceExt;
 
-use crate::graphics::{
+use crate::{graphics::{
     COMPILED_FRAGMENT_SHADER_EXT, COMPILED_SHADERS_DIR, COMPILED_VERTEX_SHADER_EXT,
-};
+}, player::Player, spacetime};
 use crate::{
     assets::AssetLoader,
     graphics::{mesh_pass::GlobalUniforms, Camera, Pass},
-    player::Atlas,
     spacetime::PhysicsTimer,
 };
 
@@ -215,8 +214,8 @@ impl DebugPass {
             per_frame_bind_group,
             global_uniform_buf,
             line_uniform_buf,
-            pipeline,
             vertex_buf,
+            pipeline,
         })
     }
 }
@@ -245,18 +244,21 @@ impl Pass for DebugPass {
             let physics_timer = resources.get::<PhysicsTimer>().unwrap();
             physics_timer.lerp() as f32
         };
+
+        use legion::IntoQuery;
+        let (position, atlas) = {
+            let atlas_entity = resources.get::<crate::player::Players>().unwrap()[0];
+            let mut atlas_query = <(&spacetime::Position, &Player)>::query();
+            atlas_query.get(world, atlas_entity).unwrap()
+        };
+
         // TODO: Merge with MeshPass
         // Upload global uniforms
         {
-            let camera_entity = resources.get::<Atlas>().unwrap().camera;
-
-            use legion::IntoQuery;
-            let mut cam_query = <(&crate::spacetime::Position, &Camera)>::query();
-            let (position, camera) = cam_query.get(world, camera_entity).unwrap();
-
+            let camera = resources.get::<Camera>().unwrap();
             let cam_pos = position.current(lerp);
 
-            let view_proj = camera.view_projection(&cam_pos);
+            let view_proj = camera.view_projection(&cam_pos, atlas.look_pitch);
             let global_uniforms = GlobalUniforms {
                 view_proj: view_proj.into(),
                 camera_pos: cam_pos.translation.vector.into(),

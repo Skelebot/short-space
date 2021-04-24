@@ -3,8 +3,8 @@ use legion::{IntoQuery, Resources, World};
 use spacetime::PhysicsTimer;
 use wgpu::util::DeviceExt;
 
-use crate::graphics::{Camera, GraphicsShared, Pass};
-use crate::{assets::AssetLoader, player::Atlas, spacetime};
+use crate::{graphics::{Camera, GraphicsShared, Pass}, player::Player};
+use crate::{assets::AssetLoader, spacetime};
 
 use super::{material::MaterialShading, pipeline::MeshPipeline, GlobalUniforms, RenderMesh};
 
@@ -200,16 +200,18 @@ impl Pass for MeshPass {
             physics_timer.lerp() as f32
         };
 
+        let (position, atlas) = {
+            let atlas_entity = resources.get::<crate::player::Players>().unwrap()[0];
+            let mut atlas_query = <(&spacetime::Position, &Player)>::query();
+            atlas_query.get(world, atlas_entity).unwrap()
+        };
+
         // Upload global uniforms
         {
-            let camera_entity = resources.get::<Atlas>().unwrap().camera;
-
-            let mut cam_query = <(&spacetime::Position, &Camera)>::query();
-            let (position, camera) = cam_query.get(world, camera_entity).unwrap();
-
+            let camera = resources.get::<Camera>().unwrap();
             let cam_pos = position.current(lerp);
 
-            let view_proj = camera.view_projection(&cam_pos);
+            let view_proj = camera.view_projection(&cam_pos, atlas.look_pitch);
             let global_uniforms = GlobalUniforms {
                 view_proj: view_proj.into(),
                 camera_pos: cam_pos.translation.vector.into(),

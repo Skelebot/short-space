@@ -20,6 +20,7 @@ fn camera_test() {
 
     assert_eq!(cam_proj, proj.into_inner());
 
+    /*
     let pos = na::Isometry3::from_parts(
         na::Translation3::from(na::Vector3::new(1.0, 3.0, 2.0)),
         na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 90.0_f32.to_radians()),
@@ -32,8 +33,8 @@ fn camera_test() {
         let up = pos * na::Vector3::z();
         na::Matrix::look_at_rh(&position, &target, &up)
     };
-
     assert_eq!(cam_view, view);
+    */
 }
 
 //------------------------------

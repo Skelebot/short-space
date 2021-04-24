@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 // TODO: The issue with players in the world
 // Option 1: Store player Entities (their indexes in the world) in Resources in a Vec, so we can fetch it once
 //           ans assume the first one in the vec is the Atlas (the player's player, the one that we control).
@@ -13,11 +11,8 @@
 // keep track of their relations. Option 1 is slower because it requires fetching from Resources AND translating
 // server-ids to client-ids. 2 is both easier to manage and faster, but requires a lot of things to be hardcoded, and
 // just isn't that extensible.
-#[derive(Debug)]
-pub struct Atlas {
-    pub player: Entity,
-    pub camera: Entity,
-}
+// OPTION 1 CHOSEN
+
 #[derive(PartialEq, Eq, Debug)]
 pub enum PlayerState {
     Normal,    // Can accelerate and turn
@@ -25,11 +20,13 @@ pub enum PlayerState {
     Spectator, // still run into walls
     Dead,      // no acceleration or turning, but still free falling
 }
+
 #[derive(PartialEq, Eq, Debug)]
 pub enum MovementState {
     Grounded,
     Airborne,
 }
+
 // Player flags:
 const PF_DUCKED: u16 = 1;
 const PF_JUMP_HELD: u16 = 2;
@@ -37,11 +34,15 @@ pub struct Player {
     pub state: PlayerState,
     pub ground_entity: Option<Entity>,
     pub flags: u16,
+    /// Looking pitch (in degrees)
+    pub look_pitch: f32,
 }
 
-use crate::assets::settings::PhysicsSettings;
+pub type Players = Vec<Entity>;
+
 use crate::input::{self, InputState};
 use crate::physics::*;
+use crate::assets::settings::PhysicsSettings;
 use crate::{
     spacetime::{Position, Time},
     GameSettings,
@@ -56,14 +57,14 @@ use legion::{system, world::SubWorld, Entity, IntoQuery};
 #[write_component(Velocity)]
 pub fn player_movement(
     #[resource] _physics_settings: &PhysicsSettings,
-    #[resource] atlas: &Atlas,
+    #[resource] players: &Players,
     #[resource] input_state: &InputState,
     #[resource] game_settings: &GameSettings,
     #[resource] time: &mut Time,
     world: &mut SubWorld,
 ) {
     let mut player_query = <(&mut Player, &mut Position, &mut Velocity)>::query();
-    let (player, position, velocity) = player_query.get_mut(world, atlas.player).unwrap();
+    let (atlas, position, velocity) = player_query.get_mut(world, players[0]).unwrap();
 
     // TODO: There is something wrong with all this - the rotation
     // seems completely linear. Small movements of the mouse are okay,
@@ -72,12 +73,23 @@ pub fn player_movement(
     // wrong.
     {
         // Rotate the player
-        let offset: na::Vector2<f32> =
-            input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta as f32;
+        if input_state.mouse_delta.x != 0.0 || input_state.mouse_delta.y != 0.0 {
+            let (_, _, yaw) = position.future().rotation.euler_angles();
+            let d_yaw_deg = input_state.mouse_delta.x * 0.05;
+            let d_pitch_deg = input_state.mouse_delta.y * 0.05;
+            log::debug!("yaw_pitch_deg: ({:.5}, {:.5})", d_yaw_deg, d_pitch_deg);
+            let yaw_deg = (yaw.to_degrees() + d_yaw_deg) % 360.0;// * game_settings.mouse_sensitivity; // * time.delta.as_secs_f32();
+            let pitch_deg = (atlas.look_pitch.to_degrees() + d_pitch_deg).max(-89.0).min(89.0);// * game_settings.mouse_sensitivity; // * time.delta.as_secs_f32();
+            atlas.look_pitch = pitch_deg.to_radians();
+            position.future_mut().rotation = na::UnitQuaternion::from_euler_angles(0.0, 0.0, yaw_deg.to_radians());
+        }
+        //let offset: na::Vector2<f32> =
+        //    input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta.as_secs_f32();
+        //
 
         // TODO: Append rotations directly instead of creating new quaternions
-        let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), offset.x);
-        let xrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::x_axis(), offset.y);
+        //let zrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), offset.x.to_radians());
+        //let xrot = na::UnitQuaternion::from_axis_angle(&na::Vector3::x_axis(), offset.y.to_radians());
 
         // Note: By changing the order of multiplications here, we can make the camera
         // do all rotations around it's own relative axes (including the z axis),
@@ -89,11 +101,11 @@ pub fn player_movement(
         // Note 2: When multiplying transformations, the order is actually done backwards
         // (xrot is the first rotation performed, because it's the last one in the multiplication)
 
-        position.future_mut().rotation = zrot * position.future_mut().rotation * xrot;
+        //position.future_mut().rotation = zrot * position.future_mut().rotation * xrot;
     }
 
     // Finally, handle movement modes
-    match player.state {
+    match atlas.state {
         // Clear flags etc
 
         // Technically, Dead shouldn't return, because corpses still fly because of their velocity
@@ -160,7 +172,7 @@ pub fn player_movement(
             // Bleeding off speed(?)
 
             // Just move
-            position.future_mut().translation.vector += velocity.linear * time.delta as f32;
+            position.future_mut().translation.vector += velocity.linear * time.delta.as_secs_f32();
 
             // PM_NoclipMove();
             // PM_DropTimers();

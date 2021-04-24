@@ -3,7 +3,6 @@ use std::any::TypeId;
 use crate::{
     assets::settings::{GameSettings, PhysicsSettings},
     graphics,
-    player::Atlas,
     spacetime::PhysicsTimer,
     state::*,
 };
@@ -14,6 +13,7 @@ use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEve
 use super::Scoped;
 
 pub struct GameState {
+    cursor_grabbed: bool,
     schedule: Schedule,
 }
 
@@ -24,7 +24,10 @@ impl GameState {
             .add_system(crate::player::player_movement_system())
             .add_system(crate::physics::children_update_system())
             .build();
-        GameState { schedule }
+        GameState {
+            schedule,
+            cursor_grabbed: false,
+        }
     }
 }
 
@@ -50,17 +53,16 @@ impl State for GameState {
                 na::Vector3::new(0.0, 10.0, 0.0),
                 Rgba::new(0.0, 1.0, 0.0, 1.0),
             );
-            debug_lines.push_line_gradient(
-                na::Vector3::repeat(0.0),
-                na::Vector3::repeat(10.0),
-                Rgba::new(1.0, 0.0, 1.0, 1.0),
-                Rgba::new(0.0, 1.0, 1.0, 1.0),
-            );
             resources.insert(debug_lines);
         }
+        resources.insert(crate::ui::FPSWindow {
+            opened: true,
+            fps: 0.0,
+        });
         let graphics = resources.get::<GraphicsShared>().unwrap();
         graphics.window.set_cursor_grab(true).unwrap();
         graphics.window.set_cursor_visible(false);
+        self.cursor_grabbed = true;
     }
 
     fn on_stop(&mut self, world: &mut legion::World, resources: &mut legion::Resources) {
@@ -68,7 +70,7 @@ impl State for GameState {
         resources.remove::<GameSettings>();
         resources.remove::<PhysicsSettings>();
         resources.remove::<PhysicsTimer>();
-        resources.remove::<Atlas>();
+        //resources.remove::<Atlas>();
 
         use legion::IntoQuery;
         let mut query = <(Entity, &Scoped)>::query();
@@ -88,7 +90,7 @@ impl State for GameState {
     fn handle_event(
         &mut self,
         _world: &mut World,
-        _resources: &mut Resources,
+        resources: &mut Resources,
         event: winit::event::Event<CustomEvent>,
     ) -> Transition {
         match event {
@@ -107,6 +109,13 @@ impl State for GameState {
             } => match code {
                 VirtualKeyCode::Back => Transition::Pop,
                 VirtualKeyCode::Escape => {
+                    let graphics = resources.get::<GraphicsShared>().unwrap();
+                    graphics
+                        .window
+                        .set_cursor_grab(!self.cursor_grabbed)
+                        .unwrap();
+                    graphics.window.set_cursor_visible(self.cursor_grabbed);
+                    self.cursor_grabbed = !self.cursor_grabbed;
                     // Pause the game
                     Transition::None
                 }
