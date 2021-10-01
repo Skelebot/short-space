@@ -50,6 +50,7 @@ impl RenderMeshPart {
                     .alpha(data.material.alpha)
                     .into(),
                 emissive: data.material.color_emissive.into(),
+                _padding: [0.0],
             },
             data.material
                 .diffuse_map
@@ -62,12 +63,12 @@ impl RenderMeshPart {
         let vertex_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&data.vertices),
-            usage: wgpu::BufferUsage::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&data.indices),
-            usage: wgpu::BufferUsage::INDEX,
+            usage: wgpu::BufferUsages::INDEX,
         });
 
         RenderMeshPart {
@@ -100,7 +101,7 @@ impl RenderMesh {
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::bytes_of(&model_uniform),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -108,12 +109,12 @@ impl RenderMesh {
             layout: &layouts.mesh,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: wgpu::BindingResource::Buffer {
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                     buffer: &uniform_buf,
                     offset: 0,
                     // FIXME
                     size: None,
-                }, //resource: wgpu::BindingResource::Buffer(uniform_buf.slice(..)),
+                }),
             }],
         });
 

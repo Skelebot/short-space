@@ -14,7 +14,7 @@ pub struct Velocity<N: RealField = f32> {
     pub angular: Vector3<N>,
 }
 
-impl<N: RealField> Velocity<N> {
+impl<N: RealField + Copy> Velocity<N> {
     /// Create velocity from its linear and angular parts.
     #[inline]
     pub fn new(linear: Vector3<N>, angular: Vector3<N>) -> Self {
@@ -55,7 +55,7 @@ impl<N: RealField> Velocity<N> {
     /// Compute the displacement due to this velocity integrated during a time equal to `1.0`.
     ///
     /// This is equivalent to `self.integrate(1.0)`.
-    pub fn to_transform(&self) -> Isometry3<N> {
+    pub fn to_transform(self) -> Isometry3<N> {
         Isometry3::new(self.linear, self.angular)
     }
 
@@ -128,7 +128,7 @@ impl<N: RealField> Velocity<N> {
     /// Compute the velocity of a point that is located at the coordinates `shift` relative to the point having `self` as velocity.
     #[inline]
     pub fn shift(&self, shift: &Vector3<N>) -> Self {
-        Self::new(self.linear + self.angular.cross(&shift), self.angular)
+        Self::new(self.linear + self.angular.cross(shift), self.angular)
     }
 
     /// Transform each component of `self` by `iso`.
@@ -144,7 +144,7 @@ impl<N: RealField> Velocity<N> {
     }
 }
 
-impl<N: RealField> Add<Velocity<N>> for Velocity<N> {
+impl<N: RealField + Copy> Add<Velocity<N>> for Velocity<N> {
     type Output = Self;
 
     #[inline]
@@ -153,7 +153,7 @@ impl<N: RealField> Add<Velocity<N>> for Velocity<N> {
     }
 }
 
-impl<N: RealField> AddAssign<Velocity<N>> for Velocity<N> {
+impl<N: RealField + Copy> AddAssign<Velocity<N>> for Velocity<N> {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {
         self.linear += rhs.linear;
@@ -161,7 +161,7 @@ impl<N: RealField> AddAssign<Velocity<N>> for Velocity<N> {
     }
 }
 
-impl<N: RealField> Sub<Velocity<N>> for Velocity<N> {
+impl<N: RealField + Copy> Sub<Velocity<N>> for Velocity<N> {
     type Output = Self;
 
     #[inline]
@@ -170,7 +170,7 @@ impl<N: RealField> Sub<Velocity<N>> for Velocity<N> {
     }
 }
 
-impl<N: RealField> SubAssign<Velocity<N>> for Velocity<N> {
+impl<N: RealField + Copy> SubAssign<Velocity<N>> for Velocity<N> {
     #[inline]
     fn sub_assign(&mut self, rhs: Self) {
         self.linear -= rhs.linear;
@@ -178,7 +178,7 @@ impl<N: RealField> SubAssign<Velocity<N>> for Velocity<N> {
     }
 }
 
-impl<N: RealField> Mul<N> for Velocity<N> {
+impl<N: RealField + Copy> Mul<N> for Velocity<N> {
     type Output = Self;
 
     #[inline]

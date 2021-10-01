@@ -22,8 +22,8 @@ void main() {
     gl_Position = u_ViewProj * u_Model * vec4(a_Position, 1.0);
 
     frag_pos = u_Model * vec4(a_Position, 1.0);
-    // Protects aganist non-uniform scaling
-    frag_norm = mat3(transpose(inverse(u_Model))) * a_Normal;
+
+    frag_norm = a_Normal;
 
     tex_coord = a_TexCoord;
     cam_pos = u_CamPos;

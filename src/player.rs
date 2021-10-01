@@ -40,9 +40,9 @@ pub struct Player {
 
 pub type Players = Vec<Entity>;
 
+use crate::assets::settings::PhysicsSettings;
 use crate::input::{self, InputState};
 use crate::physics::*;
-use crate::assets::settings::PhysicsSettings;
 use crate::{
     spacetime::{Position, Time},
     GameSettings,
@@ -78,10 +78,13 @@ pub fn player_movement(
             let d_yaw_deg = input_state.mouse_delta.x * 0.05;
             let d_pitch_deg = input_state.mouse_delta.y * 0.05;
             log::debug!("yaw_pitch_deg: ({:.5}, {:.5})", d_yaw_deg, d_pitch_deg);
-            let yaw_deg = (yaw.to_degrees() + d_yaw_deg) % 360.0;// * game_settings.mouse_sensitivity; // * time.delta.as_secs_f32();
-            let pitch_deg = (atlas.look_pitch.to_degrees() + d_pitch_deg).max(-89.0).min(89.0);// * game_settings.mouse_sensitivity; // * time.delta.as_secs_f32();
+            let yaw_deg = (yaw.to_degrees() + d_yaw_deg) % 360.0; // * game_settings.mouse_sensitivity; // * time.delta.as_secs_f32();
+            let pitch_deg = (atlas.look_pitch.to_degrees() + d_pitch_deg)
+                .max(-89.0)
+                .min(89.0); // * game_settings.mouse_sensitivity; // * time.delta.as_secs_f32();
             atlas.look_pitch = pitch_deg.to_radians();
-            position.future_mut().rotation = na::UnitQuaternion::from_euler_angles(0.0, 0.0, yaw_deg.to_radians());
+            position.future_mut().rotation =
+                na::UnitQuaternion::from_euler_angles(0.0, 0.0, yaw_deg.to_radians());
         }
         //let offset: na::Vector2<f32> =
         //    input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta.as_secs_f32();

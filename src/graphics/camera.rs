@@ -15,12 +15,12 @@ impl Camera {
         self.projection.set_aspect(aspect);
     }
 
-    pub fn view(&self, eye: na::Point3<f32>, yaw_deg: f32, pitch_deg: f32) -> na::Matrix4<f32> {
-
+    pub fn view(&self, eye: na::Point3<f32>, _yaw_deg: f32, pitch_deg: f32) -> na::Matrix4<f32> {
         static mut LAST_FRONT: Option<na::Vector3<f32>> = None;
-        
-        let front = na::UnitQuaternion::from_axis_angle(&na::Vector::x_axis(), pitch_rad) * na::Vector3::y();
-        
+
+        let front = na::UnitQuaternion::from_axis_angle(&na::Vector::x_axis(), pitch_deg)
+            * na::Vector3::y();
+
         unsafe {
             if let Some(last_front) = LAST_FRONT {
                 if last_front != front {
@@ -28,15 +28,14 @@ impl Camera {
                 }
             }
             LAST_FRONT = Some(front);
-        
         }
-        
+
         //let front = -na::Vector3::new(
         //    yaw_rad.sin() * pitch_rad.cos(),
         //    yaw_rad.cos() * pitch_rad.cos(),
         //    pitch_rad.sin(),
         //);
-        
+
         let front = eye + front;
 
         // Important note: those axes are colinear
@@ -52,14 +51,10 @@ impl Camera {
         // z axis = up
         let up = na::Vector3::new(0.0, 0.0, 1.0);
 
-        na::Matrix::look_at_rh(&eye.into(), &front.into(), &up)
+        na::Matrix::look_at_rh(&eye, &front, &up)
     }
 
     pub fn projection(&self) -> na::Matrix4<f32> {
         self.projection.into_inner()
-    }
-
-    pub fn view_projection(&self, position: &na::Isometry3<f32>, pitch_rad: f32) -> na::Matrix4<f32> {
-        self.projection() * self.view(position, pitch_rad)
     }
 }

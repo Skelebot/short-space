@@ -19,7 +19,7 @@ pub struct UiPass {
 impl UiPass {
     pub fn new(
         device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
+        surface_config: &wgpu::SurfaceConfiguration,
         window: &winit::window::Window,
         queue: &wgpu::Queue,
         _world: &mut World,
@@ -95,7 +95,7 @@ impl UiPass {
             device,
             queue,
             RendererConfig {
-                texture_format: sc_desc.format,
+                texture_format: surface_config.format,
                 ..Default::default()
             },
         );
@@ -114,7 +114,7 @@ impl Pass for UiPass {
     fn resize(
         &mut self,
         _graphics: &GraphicsShared,
-        _sc_desc: &wgpu::SwapChainDescriptor,
+        _surface_config: &wgpu::SurfaceConfiguration,
         _world: &mut legion::World,
         _resources: &mut legion::Resources,
     ) -> eyre::Result<()> {
@@ -126,7 +126,7 @@ impl Pass for UiPass {
         &mut self,
         graphics: &GraphicsShared,
         encoder: &mut wgpu::CommandEncoder,
-        target: &mut wgpu::SwapChainTexture,
+        target_view: &mut wgpu::TextureView,
         _world: &legion::World,
         resources: &legion::Resources,
         _depth_texture_view: &wgpu::TextureView,
@@ -145,8 +145,10 @@ impl Pass for UiPass {
                         .collapsible(false)
                         .resizable(false)
                         .build(&ui, || {
-                            start.play_pressed = ui.button(im_str!("Start"), [150.0, 30.0]);
-                            start.exit_pressed = ui.button(im_str!("Exit"), [150.0, 30.0]);
+                            start.play_pressed =
+                                ui.button_with_size(im_str!("Start"), [150.0, 30.0]);
+                            start.exit_pressed =
+                                ui.button_with_size(im_str!("Exit"), [150.0, 30.0]);
                         });
                 }
             }
@@ -166,8 +168,8 @@ impl Pass for UiPass {
             //ui.show_demo_window(&mut true);
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &target.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &target_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,

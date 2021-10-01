@@ -7,7 +7,7 @@ pub trait Pass {
     fn resize(
         &mut self,
         graphics: &GraphicsShared,
-        sc_desc: &wgpu::SwapChainDescriptor,
+        surface_config: &wgpu::SurfaceConfiguration,
         world: &mut World,
         resources: &mut Resources,
     ) -> Result<()>;
@@ -15,7 +15,7 @@ pub trait Pass {
         &mut self,
         graphics: &GraphicsShared,
         encoder: &mut wgpu::CommandEncoder,
-        target: &mut wgpu::SwapChainTexture,
+        target_view: &mut wgpu::TextureView,
         world: &World,
         resources: &Resources,
         depth_texture_view: &wgpu::TextureView,

@@ -1,13 +1,12 @@
-use crate::assets::AssetLoader;
+use crate::{
+    assets::AssetLoader,
+    graphics::{WGSL_SHADERS_DIR, WGSL_SHADERS_EXT},
+};
 use const_format::concatcp;
 
 use super::{
     material::{MaterialFactors, MaterialShading},
     Vertex,
-};
-
-use crate::graphics::{
-    COMPILED_FRAGMENT_SHADER_EXT, COMPILED_SHADERS_DIR, COMPILED_VERTEX_SHADER_EXT,
 };
 
 const MESH_VERTEX_SHADER_NAME: &str = "mesh";
@@ -25,7 +24,7 @@ macro_rules! bind_group_layout_entries {
             // Material factors
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -42,7 +41,7 @@ macro_rules! bind_group_layout_entries {
             // Material factors
             wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -55,7 +54,7 @@ macro_rules! bind_group_layout_entries {
             // Texture sampler
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
-                visibility: wgpu::ShaderStage::FRAGMENT,
+                visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Sampler {
                     comparison: false,
                     filtering: false,
@@ -65,7 +64,7 @@ macro_rules! bind_group_layout_entries {
             // Diffuse texture
             wgpu::BindGroupLayoutEntry {
                 binding: 2,
-                visibility: wgpu::ShaderStage::FRAGMENT,
+                visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Texture {
                     sample_type: wgpu::TextureSampleType::Float { filterable: false },
                     view_dimension: wgpu::TextureViewDimension::D2,
@@ -85,7 +84,7 @@ pub struct MeshPipeline {
 impl MeshPipeline {
     fn new(
         device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
+        surface_config: &wgpu::SurfaceConfiguration,
         global_bind_group_layout: &wgpu::BindGroupLayout,
         mesh_bind_group_layout: &wgpu::BindGroupLayout,
         part_bind_group_layout: wgpu::BindGroupLayout,
@@ -109,17 +108,18 @@ impl MeshPipeline {
                 entry_point: "main",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::InputStepMode::Vertex,
+                    step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &Vertex::vertex_attrs(),
                 }],
             },
+            fragment: Some(wgpu::FragmentState {
+                module: &fs_module,
+                entry_point: "main",
+                targets: &[surface_config.format.into()],
+            }),
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::Back,
-                // TODO: Configuration?
-                polygon_mode: wgpu::PolygonMode::Fill,
+                cull_mode: Some(wgpu::Face::Back),
+                ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
@@ -127,20 +127,10 @@ impl MeshPipeline {
                 depth_compare: wgpu::CompareFunction::Less,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
-                // TODO: DEPTH_CLAMPING feature
-                clamp_depth: false,
+                // TODO: DEPTH_CLAMPING feature (?)
             }),
             // TODO: Multisample antialiasing
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &fs_module,
-                entry_point: "main",
-                targets: &[sc_desc.format.into()],
-            }),
+            multisample: wgpu::MultisampleState::default(),
         });
         MeshPipeline {
             part_bind_group_layout,
@@ -151,64 +141,60 @@ impl MeshPipeline {
     pub fn shaded(
         ty: MaterialShading,
         device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
+        surface_config: &wgpu::SurfaceConfiguration,
         global_bind_group_layout: &wgpu::BindGroupLayout,
         mesh_bind_group_layout: &wgpu::BindGroupLayout,
         asset_loader: &AssetLoader,
     ) -> Self {
         let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::util::make_spirv(
-                &asset_loader
-                    .load_bytes(concatcp!(
-                        COMPILED_SHADERS_DIR,
+            source: wgpu::ShaderSource::Wgsl(
+                asset_loader
+                    .load_str(concatcp!(
+                        WGSL_SHADERS_DIR,
                         MESH_VERTEX_SHADER_NAME,
-                        COMPILED_VERTEX_SHADER_EXT
+                        WGSL_SHADERS_EXT
                     ))
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ),
-            flags: wgpu::ShaderFlags::default(),
         });
         use MaterialShading::*;
         let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::util::make_spirv(
-                &asset_loader
-                    .load_bytes(match ty {
-                        Untextured => concatcp!(
-                            COMPILED_SHADERS_DIR,
-                            UNTEXTURED_SHADER_NAME,
-                            COMPILED_FRAGMENT_SHADER_EXT
-                        ),
+            source: wgpu::ShaderSource::Wgsl(
+                asset_loader
+                    .load_str(match ty {
+                        Untextured => {
+                            concatcp!(WGSL_SHADERS_DIR, UNTEXTURED_SHADER_NAME, WGSL_SHADERS_EXT)
+                        }
                         UntexturedUnlit => concatcp!(
-                            COMPILED_SHADERS_DIR,
+                            WGSL_SHADERS_DIR,
                             UNTEXTURED_UNLIT_SHADER_NAME,
-                            COMPILED_FRAGMENT_SHADER_EXT
+                            WGSL_SHADERS_EXT,
                         ),
-                        Textured => concatcp!(
-                            COMPILED_SHADERS_DIR,
-                            TEXTURED_SHADER_NAME,
-                            COMPILED_FRAGMENT_SHADER_EXT
-                        ),
+                        Textured => {
+                            concatcp!(WGSL_SHADERS_DIR, TEXTURED_SHADER_NAME, WGSL_SHADERS_EXT,)
+                        }
                         TexturedUnlit => concatcp!(
-                            COMPILED_SHADERS_DIR,
+                            WGSL_SHADERS_DIR,
                             TEXTURED_UNLIT_SHADER_NAME,
-                            COMPILED_FRAGMENT_SHADER_EXT
+                            WGSL_SHADERS_EXT,
                         ),
                         TexturedEmissive => concatcp!(
-                            COMPILED_SHADERS_DIR,
+                            WGSL_SHADERS_DIR,
                             TEXTURED_EMISSIVE_SHADER_NAME,
-                            COMPILED_FRAGMENT_SHADER_EXT
+                            WGSL_SHADERS_EXT,
                         ),
                         UntexturedEmissive => concatcp!(
-                            COMPILED_SHADERS_DIR,
+                            WGSL_SHADERS_DIR,
                             UNTEXTURED_EMISSIVE_SHADER_NAME,
-                            COMPILED_FRAGMENT_SHADER_EXT
+                            WGSL_SHADERS_EXT,
                         ),
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
             ),
-            flags: wgpu::ShaderFlags::default(),
         });
 
         let part_bind_group_layout = if ty.is_textured() {
@@ -225,7 +211,7 @@ impl MeshPipeline {
 
         MeshPipeline::new(
             device,
-            sc_desc,
+            surface_config,
             global_bind_group_layout,
             mesh_bind_group_layout,
             part_bind_group_layout,

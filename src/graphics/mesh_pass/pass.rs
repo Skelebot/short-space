@@ -3,8 +3,11 @@ use legion::{IntoQuery, Resources, World};
 use spacetime::PhysicsTimer;
 use wgpu::util::DeviceExt;
 
-use crate::{graphics::{Camera, GraphicsShared, Pass}, player::Player};
 use crate::{assets::AssetLoader, spacetime};
+use crate::{
+    graphics::{Camera, GraphicsShared, Pass},
+    player::Player,
+};
 
 use super::{material::MaterialShading, pipeline::MeshPipeline, GlobalUniforms, RenderMesh};
 
@@ -30,7 +33,7 @@ pub struct MeshPass {
 impl MeshPass {
     pub fn new(
         device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
+        surface_config: &wgpu::SurfaceConfiguration,
         _world: &mut World,
         resources: &mut Resources,
     ) -> Result<MeshPass> {
@@ -42,7 +45,7 @@ impl MeshPass {
                     // Mesh matrix (na::Matrix4 / mat4)
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStage::VERTEX,
+                        visibility: wgpu::ShaderStages::VERTEX,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -61,7 +64,7 @@ impl MeshPass {
                     // Globals
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -79,12 +82,13 @@ impl MeshPass {
         let global_uniforms = GlobalUniforms {
             view_proj: na::Matrix4::identity().into(),
             camera_pos: na::Vector3::identity().into(),
+            _padding: [0.0; 9],
         };
 
         let global_uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Global uniform buffer"),
             contents: bytemuck::bytes_of(&global_uniforms),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let global_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -92,12 +96,12 @@ impl MeshPass {
             layout: &global_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: wgpu::BindingResource::Buffer {
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                     buffer: &global_uniform_buf,
                     offset: 0,
                     // FIXME
                     size: None,
-                },
+                }),
             }],
         });
 
@@ -110,7 +114,7 @@ impl MeshPass {
                 untextured: MeshPipeline::shaded(
                     MaterialShading::Untextured,
                     device,
-                    sc_desc,
+                    surface_config,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
@@ -118,7 +122,7 @@ impl MeshPass {
                 untextured_unlit: MeshPipeline::shaded(
                     MaterialShading::UntexturedUnlit,
                     device,
-                    sc_desc,
+                    surface_config,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
@@ -126,7 +130,7 @@ impl MeshPass {
                 textured: MeshPipeline::shaded(
                     MaterialShading::Textured,
                     device,
-                    sc_desc,
+                    surface_config,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
@@ -134,7 +138,7 @@ impl MeshPass {
                 textured_unlit: MeshPipeline::shaded(
                     MaterialShading::TexturedUnlit,
                     device,
-                    sc_desc,
+                    surface_config,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
@@ -142,7 +146,7 @@ impl MeshPass {
                 textured_emissive: MeshPipeline::shaded(
                     MaterialShading::TexturedEmissive,
                     device,
-                    sc_desc,
+                    surface_config,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
@@ -150,7 +154,7 @@ impl MeshPass {
                 untextured_emissive: MeshPipeline::shaded(
                     MaterialShading::UntexturedEmissive,
                     device,
-                    sc_desc,
+                    surface_config,
                     &global_bind_group_layout,
                     &mesh_bind_group_layout,
                     &asset_loader,
@@ -174,14 +178,14 @@ impl Pass for MeshPass {
     fn resize(
         &mut self,
         _graphics: &GraphicsShared,
-        sc_desc: &wgpu::SwapChainDescriptor,
+        surface_config: &wgpu::SurfaceConfiguration,
         world: &mut legion::World,
         _resources: &mut legion::Resources,
     ) -> Result<()> {
         // Update every camera's aspect ratio
         let mut query = <&mut Camera>::query();
         query.for_each_mut(world, |camera| {
-            camera.update_aspect(sc_desc.width as f32 / sc_desc.height as f32);
+            camera.update_aspect(surface_config.width as f32 / surface_config.height as f32);
         });
         Ok(())
     }
@@ -190,7 +194,7 @@ impl Pass for MeshPass {
         graphics: &GraphicsShared,
         encoder: &mut wgpu::CommandEncoder,
         // Usually the frame
-        target: &mut wgpu::SwapChainTexture,
+        target_view: &mut wgpu::TextureView,
         world: &legion::World,
         resources: &legion::Resources,
         depth_texture_view: &wgpu::TextureView,
@@ -200,7 +204,7 @@ impl Pass for MeshPass {
             physics_timer.lerp() as f32
         };
 
-        let (position, atlas) = {
+        let (position, _atlas) = {
             let atlas_entity = resources.get::<crate::player::Players>().unwrap()[0];
             let mut atlas_query = <(&spacetime::Position, &Player)>::query();
             atlas_query.get(world, atlas_entity).unwrap()
@@ -211,10 +215,16 @@ impl Pass for MeshPass {
             let camera = resources.get::<Camera>().unwrap();
             let cam_pos = position.current(lerp);
 
-            let view_proj = camera.view_projection(&cam_pos, atlas.look_pitch);
+            let view_proj = camera.projection()
+                * camera.view(
+                    cam_pos.translation.vector.into(),
+                    cam_pos.rotation.euler_angles().2.to_degrees(),
+                    cam_pos.rotation.euler_angles().1.to_degrees(),
+                );
             let global_uniforms = GlobalUniforms {
                 view_proj: view_proj.into(),
                 camera_pos: cam_pos.translation.vector.into(),
+                _padding: [0.0; 9],
             };
             graphics.queue.write_buffer(
                 &self.global_uniform_buf,
@@ -248,8 +258,8 @@ impl Pass for MeshPass {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 // Clear the frame
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &target.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: target_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         // Clear the framebuffer with a color
@@ -258,8 +268,8 @@ impl Pass for MeshPass {
                     },
                 }],
                 // Clear the depth buffer
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                    attachment: depth_texture_view,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_texture_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Load,
                         store: true,

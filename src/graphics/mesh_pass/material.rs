@@ -34,8 +34,12 @@ impl MaterialShading {
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct MaterialFactors {
+    // Alignment 16, size 16
     pub diffuse: [f32; 4],
+    // Alignment 16, size 12
     pub emissive: [f32; 3],
+    // Pad to 32
+    pub _padding: [f32; 1],
 }
 
 pub struct MeshMaterial {
@@ -59,7 +63,7 @@ impl MeshMaterial {
         let factors_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::bytes_of(&factors),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let bind_group = if !shading.is_textured() {
@@ -68,12 +72,12 @@ impl MeshMaterial {
                 layout: &layouts.material.untextured.part_bind_group_layout,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer {
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &factors_buf,
                         offset: 0,
                         // FIXME
                         size: None,
-                    },
+                    }),
                 }],
             })
         } else {
@@ -89,12 +93,12 @@ impl MeshMaterial {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::Buffer {
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                             buffer: &factors_buf,
                             offset: 0,
                             // FIXME
                             size: None,
-                        },
+                        }),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,

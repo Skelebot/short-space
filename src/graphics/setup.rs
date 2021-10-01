@@ -1,6 +1,10 @@
 use std::rc::Rc;
 
-use eyre::{eyre::eyre, eyre::WrapErr, Result};
+use eyre::{
+    eyre::eyre,
+    eyre::{ContextCompat, WrapErr},
+    Result,
+};
 use legion::{Resources, World};
 use winit::{event_loop::EventLoop, window::Window};
 
@@ -20,21 +24,26 @@ pub async fn setup(
     let event_loop = EventLoop::<CustomEvent>::with_user_event();
     let window = Window::new(&event_loop)?;
 
-    let backend = if let Ok(backend) = std::env::var("WGPU_BACKEND") {
-        match backend.to_lowercase().as_str() {
-            "vulkan" => wgpu::BackendBit::VULKAN,
-            "metal" => wgpu::BackendBit::METAL,
-            "dx12" => wgpu::BackendBit::DX12,
-            "dx11" => wgpu::BackendBit::DX11,
-            "gl" => wgpu::BackendBit::GL,
-            "webgpu" => wgpu::BackendBit::BROWSER_WEBGPU,
-            other => panic!("Unknown backend: {}", other),
-        }
+    let backend: Option<wgpu::Backends> = if let Ok(backend) = std::env::var("WGPU_BACKEND") {
+        Some(
+            match backend.to_lowercase().as_str() {
+                "vulkan" => wgpu::Backend::Vulkan,
+                "metal" => wgpu::Backend::Metal,
+                "dx12" => wgpu::Backend::Dx12,
+                "dx11" => wgpu::Backend::Dx11,
+                "gl" => wgpu::Backend::Gl,
+                "webgpu" => wgpu::Backend::BrowserWebGpu,
+                other => panic!("Unknown backend: {}", other),
+            }
+            .into(),
+        )
     } else {
-        wgpu::BackendBit::PRIMARY
+        None
     };
 
-    let instance = wgpu::Instance::new(backend);
+    // ??
+    use wgpu::Backends;
+    let instance = wgpu::Instance::new(backend.unwrap_or_else(Backends::all));
     let size = window.inner_size();
     let surface = unsafe { instance.create_surface(&window) };
     let adapter = instance
@@ -63,10 +72,11 @@ pub async fn setup(
         .await
         .wrap_err_with(|| "Failed to create the graphics device")?;
 
-    let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
-    let swap_chain_desc = wgpu::SwapChainDescriptor {
-        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-        format: swapchain_format,
+    let surface_config = wgpu::SurfaceConfiguration {
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        format: surface
+            .get_preferred_format(&adapter)
+            .wrap_err_with(|| "Failed to get preferred format")?,
         width: size.width,
         height: size.height,
         //present_mode: wgpu::PresentMode::Immediate,
@@ -76,12 +86,12 @@ pub async fn setup(
         present_mode: wgpu::PresentMode::Fifo,
     };
 
-    let swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
+    surface.configure(&device, &surface_config);
 
     // Initialize render passes
-    let mesh_pass = MeshPass::new(&device, &swap_chain_desc, world, resources)?;
-    let ui_pass = UiPass::new(&device, &swap_chain_desc, &window, &queue, world, resources)?;
-    let debug_pass = DebugPass::new(&device, &swap_chain_desc, &window, &queue, world, resources)?;
+    let mesh_pass = MeshPass::new(&device, &surface_config, world, resources)?;
+    let ui_pass = UiPass::new(&device, &surface_config, &window, &queue, world, resources)?;
+    let debug_pass = DebugPass::new(&device, &surface_config, &window, &queue, world, resources)?;
 
     let device = Rc::new(device);
     let queue = Rc::new(queue);
@@ -105,15 +115,15 @@ pub async fn setup(
     let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("depth texture"),
         size: wgpu::Extent3d {
-            width: swap_chain_desc.width,
-            height: swap_chain_desc.height,
-            depth: 1,
+            width: surface_config.width,
+            height: surface_config.height,
+            depth_or_array_layers: 1,
         },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Depth32Float,
-        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
     });
 
     let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -126,8 +136,7 @@ pub async fn setup(
             mesh_pass,
             ui_pass,
             debug_pass: Some(debug_pass),
-            swap_chain,
-            sc_desc: swap_chain_desc,
+            surface_config,
             surface,
             shared,
             depth_texture,

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 pub mod data;
 pub mod settings;
 
@@ -55,7 +56,7 @@ impl AssetLoader {
         path: &str,
         scoped: Option<Scoped>,
     ) -> Result<()> {
-        let scene = self.load::<Scene>(&path)?;
+        let scene = self.load::<Scene>(path)?;
 
         // Create a (temporary) CommandEncoder for loading data to GPU
         let mut encoder = graphics
@@ -251,6 +252,7 @@ impl AssetLoader {
                                 let wobj::obj::Normal { x, y, z } = object.normals[ni];
                                 [x as f32, y as f32, z as f32]
                             },
+                            _padding: [0.0; 6],
                         };
                         if let Some((i, _)) = mesh_vertices
                             .iter()

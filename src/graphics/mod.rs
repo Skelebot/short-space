@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{num::NonZeroU32, rc::Rc};
 
 use crate::spacetime::Time;
 use eyre::{eyre::WrapErr, Result};
@@ -30,9 +30,11 @@ use ui_pass::UiPass;
 
 pub struct MeshPassEnable;
 
-pub const COMPILED_SHADERS_DIR: &str = "shaders/compiled/";
-pub const COMPILED_VERTEX_SHADER_EXT: &str = ".vert.spv";
-pub const COMPILED_FRAGMENT_SHADER_EXT: &str = ".frag.spv";
+//pub const COMPILED_SHADERS_DIR: &str = "shaders/compiled/";
+//pub const COMPILED_VERTEX_SHADER_EXT: &str = ".vert.spv";
+//pub const COMPILED_FRAGMENT_SHADER_EXT: &str = ".frag.spv";
+pub const WGSL_SHADERS_DIR: &str = "shaders/wgsl/";
+pub const WGSL_SHADERS_EXT: &str = ".wgsl";
 
 // It's all pointers either way
 #[derive(Clone)]
@@ -51,8 +53,7 @@ pub struct Graphics {
     pub ui_pass: UiPass,
     pub debug_pass: Option<DebugPass>,
 
-    pub swap_chain: wgpu::SwapChain,
-    pub sc_desc: wgpu::SwapChainDescriptor,
+    pub surface_config: wgpu::SurfaceConfiguration,
     pub surface: wgpu::Surface,
 
     depth_texture: wgpu::Texture,
@@ -77,23 +78,23 @@ impl Graphics {
         resources: &mut Resources,
     ) -> Result<()> {
         // Recreate the swap chain with the new size
-        self.sc_desc.width = size.width;
-        self.sc_desc.height = size.height;
-        self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+        self.surface_config.width = size.width;
+        self.surface_config.height = size.height;
+        self.surface.configure(&self.device, &self.surface_config);
 
         // Resize the depth texture
         self.depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
             size: wgpu::Extent3d {
-                width: self.sc_desc.width,
-                height: self.sc_desc.height,
-                depth: 1,
+                width: self.surface_config.width,
+                height: self.surface_config.height,
+                depth_or_array_layers: 1,
             },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         });
         self.depth_texture_view = self
             .depth_texture
@@ -101,17 +102,17 @@ impl Graphics {
 
         // Tell all the render passes to resize their internal buffers
         self.mesh_pass
-            .resize(&self.shared, &self.sc_desc, world, resources)?;
+            .resize(&self.shared, &self.surface_config, world, resources)?;
         // Does nothing, resize is already handled when handling window events
         self.ui_pass
-            .resize(&self.shared, &self.sc_desc, world, resources)?;
+            .resize(&self.shared, &self.surface_config, world, resources)?;
 
         Ok(())
     }
 
     pub fn render(&mut self, world: &mut World, resources: &mut Resources) -> Result<()> {
-        let mut frame = self
-            .swap_chain
+        let frame = self
+            .surface
             .get_current_frame()
             .wrap_err_with(|| "Failed to acquire next swap chain texture")?
             .output;
@@ -120,14 +121,17 @@ impl Graphics {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
+        let mut surface_view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
         // Render onto the frame with render passes
 
         {
             // Clear the frame
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &surface_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         // Clear the framebuffer with a color
@@ -141,8 +145,8 @@ impl Graphics {
                     },
                 }],
                 // Clear the depth buffer
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                    attachment: &self.depth_texture_view,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: false,
@@ -156,9 +160,9 @@ impl Graphics {
             self.mesh_pass.render(
                 &self.shared,
                 &mut encoder,
-                &mut frame,
-                &world,
-                &resources,
+                &mut surface_view,
+                world,
+                resources,
                 &self.depth_texture_view,
             );
             // DebugPass needs the lerp value which is present only after the MeshPass is activated
@@ -166,9 +170,9 @@ impl Graphics {
                 debug_pass.render(
                     &self.shared,
                     &mut encoder,
-                    &mut frame,
-                    &world,
-                    &resources,
+                    &mut surface_view,
+                    world,
+                    resources,
                     &self.depth_texture_view,
                 );
             }
@@ -176,9 +180,9 @@ impl Graphics {
         self.ui_pass.render(
             &self.shared,
             &mut encoder,
-            &mut frame,
-            &world,
-            &resources,
+            &mut surface_view,
+            world,
+            resources,
             &self.depth_texture_view,
         );
 
@@ -197,7 +201,7 @@ impl Graphics {
         let texture_extent = wgpu::Extent3d {
             width: img_width,
             height: img_height,
-            depth: 1,
+            depth_or_array_layers: 1,
         };
         // The texture binding to copy data to and use as a handle to it
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -211,28 +215,29 @@ impl Graphics {
             } else {
                 wgpu::TextureFormat::Rgba8Unorm
             },
-            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+            usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
         });
         // Temporary buffer to copy data from into the texture
         let tmp_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&img.into_raw()),
-            usage: wgpu::BufferUsage::COPY_SRC,
+            usage: wgpu::BufferUsages::COPY_SRC,
         });
         // Copy img's pixels from the temporary buffer into the texture buffer
         encoder.copy_buffer_to_texture(
-            wgpu::BufferCopyView {
+            wgpu::ImageCopyBuffer {
                 buffer: &tmp_buf,
-                layout: wgpu::TextureDataLayout {
+                layout: wgpu::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: 4 * img_width,
-                    rows_per_image: img_height,
+                    bytes_per_row: NonZeroU32::new(4 * img_width),
+                    rows_per_image: NonZeroU32::new(img_height),
                 },
             },
-            wgpu::TextureCopyView {
+            wgpu::ImageCopyTexture {
                 texture: &texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
             },
             texture_extent,
         );

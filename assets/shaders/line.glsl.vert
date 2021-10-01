@@ -14,15 +14,13 @@ layout (set = 0, binding = 1) uniform DebugLinesUniforms {
     float thickness;
 };
 
-layout(location = 0) out VertexData {
-    vec4 color;
-} vertex;
+layout(location = 0) out vec4 color;
 
 void main() {
 
     float factor = float(gl_VertexIndex >> 1);
     // Returns color_a or color_b depending on which end of the line we are on
-    vertex.color = mix(color_a, color_b, factor);
+    color = mix(color_a, color_b, factor);
     
     vec4 proj_a = view_proj * vec4(pos_a, 1.0);
     vec4 proj_b = view_proj * vec4(pos_b, 1.0);

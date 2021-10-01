@@ -18,10 +18,10 @@ pub struct Vertex {
 impl Vertex {
     pub const fn vertex_attrs() -> [wgpu::VertexAttribute; 4] {
         wgpu::vertex_attr_array![
-            0 => Float3,
-            1 => Float4,
-            2 => Float3,
-            3 => Float4,
+            0 => Float32x2,
+            1 => Float32x4,
+            2 => Float32x3,
+            3 => Float32x4,
         ]
     }
 }

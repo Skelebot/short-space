@@ -1,15 +1,12 @@
-use legion::Resources;
-
 use crate::{
     assets::{
         self,
         settings::{GameSettings, PhysicsSettings},
-        AssetLoader,
     },
     graphics::GraphicsShared,
     physics,
     player::{Player, PlayerState},
-    spacetime::{Child, PhysicsTimer, Position},
+    spacetime::{PhysicsTimer, Position},
     state::State,
 };
 
@@ -44,7 +41,6 @@ impl State for LoadingState {
         world: &mut legion::World,
         resources: &mut legion::Resources,
     ) -> crate::state::Transition {
-        
         self.continue_loading(world, resources);
 
         if self.done {
@@ -118,7 +114,7 @@ impl LoadingState {
         // Add the player to the world and keep it's Entity (an ID)
         // so we can add it to a Resource to track the single main player
         let atlas = world.push((pos, collider, vel, player));
-        
+
         let players: crate::player::Players = vec![atlas];
         resources.insert(players);
 

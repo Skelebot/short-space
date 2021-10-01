@@ -8,25 +8,32 @@ pub use pass::MeshPass;
 mod material;
 mod pipeline;
 
+// Alignment table: https://gpuweb.github.io/gpuweb/wgsl/#alignment-and-size
+
 use bytemuck::{Pod, Zeroable};
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable, PartialEq, Debug)]
 pub struct Vertex {
+    // Alignment 16
     pub pos: [f32; 3],
+    // Alignment 16
     pub normal: [f32; 3],
+    // Alignment 8
     pub uv: [f32; 2],
+    // Pad to 64
+    pub _padding: [f32; 6],
 }
 
 impl Vertex {
     // TODO: Const?
     pub fn vertex_attrs() -> [wgpu::VertexAttribute; 3] {
         wgpu::vertex_attr_array![
-            // Position
-            0 => Float3,
-            // Normal
-            1 => Float3,
-            // UV
-            2 => Float2,
+            // Position (alignment 16)
+            0 => Float32x3,
+            // Normal (alignment 16)
+            1 => Float32x3,
+            // UV (alignment 8)
+            2 => Float32x2,
         ]
     }
 }
@@ -34,8 +41,12 @@ impl Vertex {
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct GlobalUniforms {
+    // Alignment 16, size 64
     pub(crate) view_proj: [[f32; 4]; 4],
+    // Alignment 16, size 12 (16 taken)
     pub(crate) camera_pos: [f32; 3],
+    // Pad to 128
+    pub _padding: [f32; 3 + 6],
 }
 
 #[repr(C)]

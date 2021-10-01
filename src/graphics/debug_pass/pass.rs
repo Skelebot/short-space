@@ -4,14 +4,12 @@ use eyre::Result;
 use legion::{Resources, World};
 use wgpu::util::DeviceExt;
 
-use crate::{graphics::{
-    COMPILED_FRAGMENT_SHADER_EXT, COMPILED_SHADERS_DIR, COMPILED_VERTEX_SHADER_EXT,
-}, player::Player, spacetime};
 use crate::{
     assets::AssetLoader,
-    graphics::{mesh_pass::GlobalUniforms, Camera, Pass},
+    graphics::{mesh_pass::GlobalUniforms, Camera, Pass, WGSL_SHADERS_DIR, WGSL_SHADERS_EXT},
     spacetime::PhysicsTimer,
 };
+use crate::{player::Player, spacetime};
 
 use super::DebugLinesUniforms;
 
@@ -32,7 +30,7 @@ pub struct DebugPass {
 impl DebugPass {
     pub fn new(
         device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
+        surface_config: &wgpu::SurfaceConfiguration,
         _window: &winit::window::Window,
         _queue: &wgpu::Queue,
         _world: &mut World,
@@ -46,7 +44,7 @@ impl DebugPass {
                     // Globals
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStage::VERTEX,
+                        visibility: wgpu::ShaderStages::VERTEX,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -60,7 +58,7 @@ impl DebugPass {
                     // Line uniforms
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
-                        visibility: wgpu::ShaderStage::VERTEX,
+                        visibility: wgpu::ShaderStages::VERTEX,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -77,6 +75,7 @@ impl DebugPass {
         let global_uniforms = GlobalUniforms {
             view_proj: na::Matrix4::identity().into(),
             camera_pos: na::Vector3::identity().into(),
+            _padding: [0.0; 9],
         };
 
         let line_uniforms = DebugLinesUniforms {
@@ -86,13 +85,13 @@ impl DebugPass {
         let global_uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::bytes_of(&global_uniforms),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let line_uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::bytes_of(&line_uniforms),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let per_frame_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -101,57 +100,43 @@ impl DebugPass {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::Buffer {
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &global_uniform_buf,
                         offset: 0,
                         // FIXME
                         size: None,
-                    },
+                    }),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Buffer {
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &line_uniform_buf,
                         offset: 0,
                         // FIXME
                         size: None,
-                    },
+                    }),
                 },
             ],
         });
 
-        let (vs_module, fs_module) = {
+        let shader_module = {
             let asset_loader = resources
                 .get::<AssetLoader>()
                 .ok_or_else(|| anyhow!("Asset loader not found, cannot load shaders"))?;
 
-            let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            device.create_shader_module(&wgpu::ShaderModuleDescriptor {
                 label: None,
-                source: wgpu::util::make_spirv(
-                    &asset_loader
-                        .load_bytes(concatcp!(
-                            COMPILED_SHADERS_DIR,
+                source: wgpu::ShaderSource::Wgsl(
+                    asset_loader
+                        .load_str(concatcp!(
+                            WGSL_SHADERS_DIR,
                             LINE_SHADER_NAME,
-                            COMPILED_VERTEX_SHADER_EXT,
+                            WGSL_SHADERS_EXT,
                         ))
-                        .unwrap(),
+                        .unwrap()
+                        .into(),
                 ),
-                flags: wgpu::ShaderFlags::default(),
-            });
-            let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-                label: None,
-                source: wgpu::util::make_spirv(
-                    &asset_loader
-                        .load_bytes(concatcp!(
-                            COMPILED_SHADERS_DIR,
-                            LINE_SHADER_NAME,
-                            COMPILED_FRAGMENT_SHADER_EXT,
-                        ))
-                        .unwrap(),
-                ),
-                flags: wgpu::ShaderFlags::default(),
-            });
-            (vs_module, fs_module)
+            })
         };
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -164,20 +149,24 @@ impl DebugPass {
             label: None,
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &vs_module,
+                module: &shader_module,
                 entry_point: "main",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<super::Vertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::InputStepMode::Instance,
+                    step_mode: wgpu::VertexStepMode::Instance,
                     attributes: &super::Vertex::vertex_attrs(),
                 }],
             },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader_module,
+                entry_point: "main",
+                targets: &[surface_config.format.into()],
+            }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleStrip,
                 strip_index_format: Some(wgpu::IndexFormat::Uint16),
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
-                polygon_mode: wgpu::PolygonMode::Fill,
+                ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
@@ -185,8 +174,7 @@ impl DebugPass {
                 depth_compare: wgpu::CompareFunction::Less,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
-                // TODO: DEPTH_CLAMPING feature
-                clamp_depth: false,
+                // TODO: DEPTH_CLAMPING feature (?)
             }),
             // TODO: Multisample antialiasing
             multisample: wgpu::MultisampleState {
@@ -194,17 +182,12 @@ impl DebugPass {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            fragment: Some(wgpu::FragmentState {
-                module: &fs_module,
-                entry_point: "main",
-                targets: &[sc_desc.format.into()],
-            }),
         });
 
         let vertex_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             mapped_at_creation: false,
-            usage: wgpu::BufferUsage::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX,
             // FIXME
             size: 0,
         });
@@ -224,7 +207,7 @@ impl Pass for DebugPass {
     fn resize(
         &mut self,
         _graphics: &crate::graphics::GraphicsShared,
-        _sc_desc: &wgpu::SwapChainDescriptor,
+        _surface_config: &wgpu::SurfaceConfiguration,
         _world: &mut World,
         _resources: &mut Resources,
     ) -> Result<()> {
@@ -235,7 +218,7 @@ impl Pass for DebugPass {
         &mut self,
         graphics: &crate::graphics::GraphicsShared,
         encoder: &mut wgpu::CommandEncoder,
-        target: &mut wgpu::SwapChainTexture,
+        target_view: &mut wgpu::TextureView,
         world: &World,
         resources: &Resources,
         depth_texture_view: &wgpu::TextureView,
@@ -246,7 +229,7 @@ impl Pass for DebugPass {
         };
 
         use legion::IntoQuery;
-        let (position, atlas) = {
+        let (position, _atlas) = {
             let atlas_entity = resources.get::<crate::player::Players>().unwrap()[0];
             let mut atlas_query = <(&spacetime::Position, &Player)>::query();
             atlas_query.get(world, atlas_entity).unwrap()
@@ -258,10 +241,16 @@ impl Pass for DebugPass {
             let camera = resources.get::<Camera>().unwrap();
             let cam_pos = position.current(lerp);
 
-            let view_proj = camera.view_projection(&cam_pos, atlas.look_pitch);
+            let view_proj = camera.projection()
+                * camera.view(
+                    cam_pos.translation.vector.into(),
+                    cam_pos.rotation.euler_angles().2.to_degrees(),
+                    cam_pos.rotation.euler_angles().1.to_degrees(),
+                );
             let global_uniforms = GlobalUniforms {
                 view_proj: view_proj.into(),
                 camera_pos: cam_pos.translation.vector.into(),
+                _padding: [0.0; 9],
             };
             graphics.queue.write_buffer(
                 &self.global_uniform_buf,
@@ -276,8 +265,8 @@ impl Pass for DebugPass {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 // Clear the frame
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &target.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: target_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         // Clear the framebuffer with a color
@@ -286,8 +275,8 @@ impl Pass for DebugPass {
                     },
                 }],
                 // Clear the depth buffer
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                    attachment: depth_texture_view,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_texture_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Load,
                         store: true,
@@ -306,14 +295,14 @@ impl Pass for DebugPass {
                             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                                 label: None,
                                 contents: bytemuck::cast_slice(&lines.vec),
-                                usage: wgpu::BufferUsage::VERTEX,
+                                usage: wgpu::BufferUsages::VERTEX,
                             });
                     graphics.queue.write_buffer(
                         &self.line_uniform_buf,
                         0,
                         bytemuck::bytes_of(&DebugLinesUniforms {
                             screen_thickness: [
-                                // TODO: get width/height from sc_desc instead
+                                // TODO: get width/height from surface_config instead
                                 lines.thickness / (graphics.window.inner_size().width as f32),
                                 lines.thickness / (graphics.window.inner_size().height as f32),
                             ],
