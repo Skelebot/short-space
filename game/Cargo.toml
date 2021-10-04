@@ -1,0 +1,59 @@
+[package]
+name = "game"
+version = "0.1.0"
+authors = ["Antoni Simka <antonisimka.8@gmail.com>"]
+build = "build.rs"
+edition = "2021"
+
+[dependencies]
+engine = { path = "../engine" }
+# Graphics
+winit = { version = "0.25.0", default_features = false, features = ["x11"] }
+imgui = "0.8.0"
+
+# Math
+nalgebra = "0.29.0"
+
+# Physics
+ncollide3d = "0.32.0"
+
+# File loading
+serde = "1.0.130"
+ron = "0.6.5"
+image = "0.23.14"
+
+# Data loading
+bytemuck = { version = "1.7.2", features = ["derive"] }
+
+# Misc
+const_format = "0.2.21"
+futures = "0.3.17"
+env_logger = "0.9.0"
+log = "0.4.14"
+
+# Error handling
+color-eyre = "0.5.11"
+imgui-winit-support = "0.8.0"
+imgui-wgpu = "0.17.1"
+legion = "0.4.0"
+wavefront_obj = "10.0.0"
+#git = "https://github.com/Skelebot/wavefront_obj"
+
+[dependencies.wgpu]
+version = "0.10"
+features = ["spirv"]
+
+[build-dependencies]
+# Used for copying the assets dir to the target dir for testing
+walkdir = "2.3.2"
+
+[dev-dependencies]
+# For relative-comparing floats in tests
+approx = "0.5.0"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev.package.nalgebra]
+
+[profile.dev.package.ncollide3d]
