@@ -20,7 +20,7 @@ use winit::{
     event_loop::ControlFlow,
 };
 
-fn main() -> Result<()> {
+pub fn main() -> Result<()> {
     // Set up the terminal
     env_logger::init();
     color_eyre::install()?;
@@ -47,6 +47,9 @@ fn main() -> Result<()> {
     let mut state_machine = StateMachine::new(state::MainState::new());
     state_machine.start(&mut world, &mut resources)?;
 
+    let mut egui_ctx = egui::CtxRef::default();
+    let mut egui_event_vec = Vec::<egui::Event>::new();
+
     info!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
@@ -59,6 +62,10 @@ fn main() -> Result<()> {
                 graphics.prepare(&mut resources);
                 // Update frame timings
                 spacetime::prepare(&mut resources);
+
+                // Egui
+                let raw_input: egui::RawInput = gather_input();
+                egui_ctx.begin_frame(raw_input);
             }
             // If the user closed the window, exit
             &Event::WindowEvent {

@@ -22,8 +22,7 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    // TODO: Const?
-    pub fn vertex_attrs() -> [wgpu::VertexAttribute; 3] {
+    pub const fn vertex_attrs() -> [wgpu::VertexAttribute; 3] {
         wgpu::vertex_attr_array![
             // Position (alignment 16)
             0 => Float32x3,

@@ -29,6 +29,16 @@ impl InputState {
         self.pressed_keys[offset as usize] & 1 << (*keycode as u32 - (offset * 32)) != 0
     }
 
+    pub fn modifiers(&self) -> egui::Modifiers {
+        egui::Modifiers {
+            alt: self.is_key_pressed(&VirtualKeyCode::LAlt),
+            ctrl: self.is_key_pressed(&VirtualKeyCode::LControl),
+            shift: self.is_key_pressed(&VirtualKeyCode::LShift),
+            mac_cmd: self.is_key_pressed(&VirtualKeyCode::LControl),
+            command: self.is_key_pressed(&VirtualKeyCode::LControl),
+        }
+    }
+
     /// Get the state of an axis
     /// Returns a value from -1.0 to 1.0
     pub fn get_axis_state(&self, axis: &Axis) -> f32 {

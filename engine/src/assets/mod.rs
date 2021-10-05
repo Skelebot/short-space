@@ -222,14 +222,11 @@ impl AssetLoader {
                         .color_emissive
                         .map_or(color::Rgb::default(), |m| m.into()),
                     alpha: mat.alpha as f32,
-                    // TODO: Replace unwraps here with printing the error and returning None,
-                    // allowing the game to run even if some textures couldn't load, but also
-                    // leaving a trace that something went wrong
                     // ambient_map: mat.ambient_map.map(|path| self.load_map_img(&path).unwrap()),
                     diffuse_map: mat
                         .diffuse_map
                         .as_ref()
-                        .map(|path| self.load_map_img(obj_parent.join(&path)).unwrap()),
+                        .and_then(|path| self.load_map_img(obj_parent.join(&path)).ok()),
                 });
 
                 // If we create a index buffer with u32s it doesn't render correctly
