@@ -1,7 +1,7 @@
 mod material;
 mod pipeline;
 mod render_mesh;
-pub use render_mesh::{RenderMesh, RenderMeshPart, RenderMeshLayouts};
+pub use render_mesh::{RenderMesh, RenderMeshLayouts, RenderMeshPart};
 mod pass;
 pub use pass::MeshPass;
 

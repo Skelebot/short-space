@@ -6,10 +6,14 @@ extern crate ncollide3d as nc;
 extern crate log;
 
 mod player;
-mod state;
 mod settings;
+mod state;
 
-use engine::{assets::AssetLoader, graphics, input, spacetime, state::{CustomEvent, StateMachine}};
+use engine::{
+    assets::AssetLoader,
+    graphics, input, spacetime,
+    state::{CustomEvent, StateMachine},
+};
 
 use eyre::Result;
 use legion::{Resources, World};
@@ -47,12 +51,29 @@ pub fn main() -> Result<()> {
     let mut state_machine = StateMachine::new(state::MainState::new());
     state_machine.start(&mut world, &mut resources)?;
 
-    let mut egui_ctx = egui::CtxRef::default();
-    let mut egui_event_vec = Vec::<egui::Event>::new();
+    //let mut egui_ctx = egui::CtxRef::default();
+    //let mut egui_event_vec = Vec::<egui::Event>::new();
+    let mut egui = egui_winit_platform::Platform::new(egui_winit_platform::PlatformDescriptor {
+        physical_height: graphics.window.inner_size().height,
+        physical_width: graphics.window.inner_size().width,
+        //scale_factor: 2.0,
+        scale_factor: graphics.window.scale_factor(),
+        style: Default::default(),
+        font_definitions: Default::default(),
+    });
+
+    log::warn!(
+        "Window size: ({:?}, {:?}), * {:?}",
+        graphics.window.inner_size().height,
+        graphics.window.inner_size().width,
+        graphics.window.scale_factor(),
+    );
 
     info!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
+        //input::handle_egui_event(&event, &mut egui_event_vec);
+        egui.handle_event(&event);
         match &event {
             &Event::NewEvents(_) => {
                 // Reset input to values before any events get handled
@@ -64,8 +85,13 @@ pub fn main() -> Result<()> {
                 spacetime::prepare(&mut resources);
 
                 // Egui
-                let raw_input: egui::RawInput = gather_input();
-                egui_ctx.begin_frame(raw_input);
+                //let raw_input: egui::RawInput = input::gather_egui_input(&mut resources, &mut egui_event_vec);
+                //egui_ctx.begin_frame(raw_input);
+                egui.begin_frame();
+                resources.remove::<egui::CtxRef>();
+                let ctx = egui.context();
+                resources.insert(ctx);
+                log::debug!("Ctx refreshed");
             }
             // If the user closed the window, exit
             &Event::WindowEvent {
@@ -96,18 +122,24 @@ pub fn main() -> Result<()> {
             // Event::Resumed
             // Emitted when all of the event loop's input events have been processed and redraw processing is about to begin.
             &Event::MainEventsCleared => {
+                log::debug!("rendering...");
                 state_machine.update(&mut world, &mut resources);
                 // Request rendering
                 //graphics.window.request_redraw();
+
+                // Prepare the UI (only when a repaint is needed)
+                let e = egui.end_frame(Some(&graphics.window));
+                let ui = { Some((egui.context().tessellate(e.1), egui.context().texture())) };
+
                 // Render
-                graphics.render(&mut world, &mut resources).unwrap();
+                graphics.render(&mut world, &mut resources, ui).unwrap();
             }
             // Render the frame
             &Event::RedrawRequested(_) => {}
             _ => {}
         }
         // Handle events by UI
-        graphics.ui_pass.handle_event(&graphics.window, &event);
+        //graphics.ui_pass.handle_event(&graphics.window, &event);
         state_machine.handle_event(&mut world, &mut resources, event);
     });
 }

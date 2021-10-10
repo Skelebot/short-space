@@ -1,6 +1,6 @@
 use std::{num::NonZeroU32, rc::Rc};
 
-use crate::spacetime::Time;
+use egui_wgpu_backend::ScreenDescriptor;
 use eyre::{eyre::WrapErr, Result};
 use legion::{Resources, World};
 use winit::dpi::PhysicalSize;
@@ -20,7 +20,6 @@ pub use pass::Pass;
 
 pub mod debug;
 pub mod mesh;
-pub mod ui;
 
 use bytemuck::{Pod, Zeroable};
 
@@ -56,7 +55,6 @@ pub struct Graphics {
     pub window: Rc<winit::window::Window>,
 
     pub mesh_pass: mesh::MeshPass,
-    pub ui_pass: ui::UiPass,
     pub debug_pass: Option<debug::DebugPass>,
 
     pub surface_config: wgpu::SurfaceConfiguration,
@@ -69,13 +67,7 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub fn prepare(&mut self, resources: &mut Resources) {
-        let time = resources.get::<Time>().unwrap();
-        self.ui_pass
-            .ctx
-            .io_mut()
-            .update_delta_time(time.current.elapsed());
-    }
+    pub fn prepare(&mut self, _resources: &mut Resources) {}
 
     pub fn resize(
         &mut self,
@@ -109,19 +101,26 @@ impl Graphics {
         // Tell all the render passes to resize their internal buffers
         self.mesh_pass
             .resize(&self.shared, &self.surface_config, world, resources)?;
-        // Does nothing, resize is already handled when handling window events
-        self.ui_pass
-            .resize(&self.shared, &self.surface_config, world, resources)?;
 
         Ok(())
     }
 
-    pub fn render(&mut self, world: &mut World, resources: &mut Resources) -> Result<()> {
-        let frame = self
-            .surface
-            .get_current_frame()
-            .wrap_err_with(|| "Failed to acquire next swap chain texture")?
-            .output;
+    pub fn render(
+        &mut self,
+        world: &mut World,
+        resources: &mut Resources,
+        ui: Option<(Vec<epaint::ClippedMesh>, std::sync::Arc<epaint::Texture>)>,
+    ) -> Result<()> {
+        let frame = match self.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(_) => {
+                log::debug!("Reconfiguring surface");
+                self.surface.configure(&self.device, &self.surface_config);
+                self.surface
+                    .get_current_texture()
+                    .wrap_err_with(|| "Failed to acquire next swapchain texture")?
+            }
+        };
 
         let mut encoder = self
             .device
@@ -133,6 +132,7 @@ impl Graphics {
         // Render onto the frame with render passes
 
         {
+            log::debug!("Clearing frame");
             // Clear the frame
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -162,6 +162,7 @@ impl Graphics {
             });
         }
 
+        log::debug!("Rendering meshes");
         self.mesh_pass.render(
             &self.shared,
             &mut encoder,
@@ -182,16 +183,35 @@ impl Graphics {
             );
         }
 
-        self.ui_pass.render(
-            &self.shared,
-            &mut encoder,
-            &mut surface_view,
-            &self.depth_texture_view,
-            world,
-            resources,
-        );
+        if let Some((triangles, texture)) = ui {
+            log::debug!("Rendering ui");
+            let mut egui_rpass = egui_wgpu_backend::RenderPass::new(
+                &self.shared.device,
+                self.surface_config.format,
+                1,
+            );
+            egui_rpass.update_texture(&self.device, &self.queue, &texture);
+            egui_rpass.update_user_textures(&self.device, &self.queue);
+            let screen_desc = ScreenDescriptor {
+                physical_width: self.surface_config.width,
+                physical_height: self.surface_config.height,
+                scale_factor: self.window.scale_factor() as f32,
+            };
+            egui_rpass.update_buffers(&self.device, &self.queue, &triangles[..], &screen_desc);
+
+            egui_rpass
+                .execute(
+                    &mut encoder,
+                    &surface_view,
+                    &triangles[..],
+                    &screen_desc,
+                    None,
+                )
+                .wrap_err_with(|| "Failed to render UI")?;
+        }
 
         self.queue.submit(Some(encoder.finish()));
+        frame.present();
         Ok(())
     }
 

@@ -2,11 +2,14 @@ use engine::graphics::{Camera, MainCamera};
 
 use crate::{
     player::{Player, PlayerState},
-    spacetime::{PhysicsTimer, Position},
     settings::{GameSettings, PhysicsSettings},
+    spacetime::{PhysicsTimer, Position},
 };
 
-use engine::{physics, graphics, state::{State, CustomEvent, Transition, Scoped}, ui::LoadingWindow};
+use engine::{
+    graphics, physics,
+    state::{CustomEvent, Scoped, State, Transition},
+};
 
 use super::game::GameState;
 
@@ -21,9 +24,7 @@ impl LoadingState {
 }
 
 impl State for LoadingState {
-    fn on_start(&mut self, _world: &mut legion::World, resources: &mut legion::Resources) {
-        resources.insert(LoadingWindow);
-    }
+    fn on_start(&mut self, _world: &mut legion::World, _resources: &mut legion::Resources) {}
 
     fn handle_event(
         &mut self,
@@ -50,7 +51,6 @@ impl State for LoadingState {
 }
 
 impl LoadingState {
-    // TODO: Load things in steps and advance a slider in LoadingWindow instead
     fn continue_loading(&mut self, world: &mut legion::World, resources: &mut legion::Resources) {
         // Load settings
         let (settings, p_settings) = {

@@ -6,9 +6,15 @@ use eyre::{
     Result,
 };
 use legion::{Resources, World};
-use winit::{event_loop::EventLoop, window::Window};
+use winit::{event_loop::EventLoop, window::WindowBuilder};
 
-use crate::{graphics::{debug::DebugPass, mesh::{MeshPass, RenderMeshLayouts}, ui::UiPass}, state::CustomEvent};
+use crate::{
+    graphics::{
+        debug::DebugPass,
+        mesh::{MeshPass, RenderMeshLayouts},
+    },
+    state::CustomEvent,
+};
 
 use crate::graphics::*;
 
@@ -17,7 +23,9 @@ pub async fn setup(
     resources: &mut Resources,
 ) -> Result<(Graphics, EventLoop<CustomEvent>)> {
     let event_loop = EventLoop::<CustomEvent>::with_user_event();
-    let window = Window::new(&event_loop)?;
+    let window = WindowBuilder::new()
+        .with_title("Endless Josh")
+        .build(&event_loop)?;
 
     let backend: Option<wgpu::Backends> = if let Ok(backend) = std::env::var("WGPU_BACKEND") {
         Some(
@@ -47,6 +55,7 @@ pub async fn setup(
             power_preference: wgpu::PowerPreference::default(),
             // Request an adapter which can render to a surface
             compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
         })
         .await
         .ok_or_else(|| eyre!("Couldn't find a compatible graphics adapter for backend: {:?}\nIf you want to force a different backend, set the WGPU_BACKEND environmental variable.\nKeep in mind that OpenGL is not currently supported.", backend))?;
@@ -85,7 +94,7 @@ pub async fn setup(
 
     // Initialize render passes
     let mesh_pass = MeshPass::new(&device, &surface_config, world, resources)?;
-    let ui_pass = UiPass::new(&device, &surface_config, &window, &queue, world, resources)?;
+    //let ui_pass = UiPass::new(&device, &surface_config, &window, &queue, world, resources)?;
     let debug_pass = DebugPass::new(&device, &surface_config, &window, &queue, world, resources)?;
 
     let device = Rc::new(device);
@@ -129,7 +138,7 @@ pub async fn setup(
             queue,
             window,
             mesh_pass,
-            ui_pass,
+            //ui_pass,
             debug_pass: Some(debug_pass),
             surface_config,
             surface,

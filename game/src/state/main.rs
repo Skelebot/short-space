@@ -4,7 +4,7 @@ use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEve
 use super::loading::LoadingState;
 use engine::ui::StartWindow;
 
-use engine::{state::{CustomEvent, State, Transition}};
+use engine::state::{CustomEvent, State, Transition};
 
 pub struct MainState {
     schedule: Schedule,
@@ -79,21 +79,23 @@ impl State for MainState {
     }
 
     fn update(&mut self, world: &mut World, resources: &mut Resources) -> Transition {
-        {
-            let menu = resources.get::<StartWindow>().unwrap();
-            if menu.play_pressed {
-                return Transition::Push(Box::new(LoadingState::new()));
-            }
-            if menu.exit_pressed {
-                resources
-                    .get::<winit::event_loop::EventLoopProxy<CustomEvent>>()
-                    .unwrap()
-                    .send_event(CustomEvent::Exit)
-                    .unwrap();
-                return Transition::None;
-            }
-        }
         self.schedule.execute(world, resources);
-        Transition::None
+        // Draw UI
+        {
+            let ctx = resources.get::<egui::CtxRef>().unwrap();
+            let response = egui::SidePanel::left("left_panel")
+                .resizable(false)
+                .show(&ctx, |ui| {
+                    ui.label("ENDLESS JOSH");
+                    if ui.button("Start").clicked() {
+                        return Transition::Push(Box::new(LoadingState::new()));
+                    };
+                    if ui.button("Exit").clicked() {
+                        return Transition::Pop;
+                    };
+                    Transition::None
+                });
+            response.inner
+        }
     }
 }

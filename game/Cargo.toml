@@ -9,7 +9,6 @@ edition = "2021"
 engine = { path = "../engine" }
 # Graphics
 winit = { version = "0.25.0", default_features = false, features = ["x11"] }
-imgui = "0.8.0"
 
 # Math
 nalgebra = "0.29.0"
@@ -33,14 +32,16 @@ log = "0.4.14"
 
 # Error handling
 color-eyre = "0.5.11"
-imgui-winit-support = "0.8.0"
-imgui-wgpu = "0.17.1"
 legion = "0.4.0"
 wavefront_obj = "10.0.0"
-#git = "https://github.com/Skelebot/wavefront_obj"
+
+egui_winit_platform = "0.10.0"
+epaint = "0.14.0"
+egui_wgpu_backend = "0.13.0"
+egui = "0.14.2"
 
 [dependencies.wgpu]
-version = "0.10"
+version = "0.11.0"
 features = ["spirv"]
 
 [build-dependencies]
@@ -53,7 +54,3 @@ approx = "0.5.0"
 
 [profile.dev.package."*"]
 opt-level = 2
-
-[profile.dev.package.nalgebra]
-
-[profile.dev.package.ncollide3d]

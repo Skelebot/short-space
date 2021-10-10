@@ -26,6 +26,9 @@ pub struct AssetLoader {
 }
 
 impl AssetLoader {
+    pub fn root_path(&self) -> &Path {
+        self.root_path.as_path()
+    }
     pub fn from_relative_exe_path(rel_path: &Path) -> Result<AssetLoader> {
         let exe_file_name = std::env::current_exe()?;
 

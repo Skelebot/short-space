@@ -7,8 +7,7 @@ authors = ["antoni simka <antonisimka.8@gmail.com>"]
 [dependencies]
 # graphics
 winit = { version = "0.25.0", default_features = false, features = ["x11"] }
-imgui = "0.8.0"
-egui = "*"
+egui = "0.14.2"
 
 # math
 nalgebra = "0.29.0"
@@ -32,13 +31,14 @@ log = "0.4.14"
 
 # error handling
 color-eyre = "0.5.11"
-imgui-winit-support = "0.8.0"
-imgui-wgpu = "0.17.1"
 legion = "0.4.0"
 wavefront_obj = "10.0.0"
+egui-winit = "0.0.1-alpha.2"
+epaint = "0.14.0"
+egui_wgpu_backend = "0.13.0"
 
 [dependencies.wgpu]
-version = "0.10"
+version = "0.11.0"
 features = ["spirv"]
 
 [build-dependencies]
@@ -48,6 +48,3 @@ walkdir = "2.3.2"
 [dev-dependencies]
 # for relative-comparing floats in tests
 approx = "0.5.0"
-
-# [profile.dev.package."*"]
-# opt-level = 2

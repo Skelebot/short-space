@@ -42,13 +42,13 @@ pub struct Player {
 
 pub type Players = Vec<Entity>;
 
+use crate::{
+    settings::*,
+    spacetime::{Position, Time},
+};
 use engine::graphics::MainCamera;
 use engine::input::{self, InputState};
 use engine::physics::*;
-use crate::{
-    spacetime::{Position, Time},
-    settings::*,
-};
 use legion::{system, world::SubWorld, Entity, IntoQuery};
 
 #[system]
@@ -216,6 +216,6 @@ pub fn camera_sync(
 ) {
     let mut player_query = <(&Player, &Position)>::query();
     let (_player, position) = player_query.get(world, players[0]).unwrap();
-    
+
     main_cam.position = *position;
 }

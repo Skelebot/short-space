@@ -1,9 +1,6 @@
 use std::any::TypeId;
 
-use crate::{
-    spacetime::PhysicsTimer,
-    settings::*,
-};
+use crate::{settings::*, spacetime::PhysicsTimer};
 use engine::graphics::{color::Rgba, debug::DebugLines, GraphicsShared};
 use legion::{Entity, Resources, Schedule, World};
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
