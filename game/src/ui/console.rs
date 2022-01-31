@@ -37,11 +37,7 @@ impl Console {
         }
         Ok(())
     }
-    fn handle_command(
-        &mut self,
-        world: &mut World,
-        resources: &mut Resources,
-    ) -> eyre::Result<()> {
+    fn handle_command(&mut self, world: &mut World, resources: &mut Resources) -> eyre::Result<()> {
         self.log.push_str(&format!("CMD: {}\n", &self.command));
 
         match self.command.trim() {

@@ -208,7 +208,7 @@ impl Pass for MeshPass {
         if let Some(main_cam) = resources.get::<MainCamera>() {
             let cam_pos = main_cam.position.current(lerp);
             log::debug!("cam_pos: {:?}", cam_pos);
-            let view_proj = main_cam.camera.projection()
+            let _view_proj = main_cam.camera.projection()
                 * main_cam.camera.view(
                     cam_pos.translation.vector.into(),
                     cam_pos.rotation.euler_angles().2.to_degrees(),

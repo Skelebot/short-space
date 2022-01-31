@@ -1,7 +1,7 @@
 use legion::{Resources, Schedule, World};
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 
-use crate::ui::{StatusWindow, console::Console};
+use crate::ui::{console::Console, StatusWindow};
 
 use super::loading::LoadingState;
 use eyre::{eyre::WrapErr, Result};
@@ -11,7 +11,7 @@ use engine::state::{CustomEvent, State, Transition};
 pub struct MainState {
     schedule: Schedule,
     ui: Vec<Box<dyn StatusWindow>>,
-    //console: Console,
+    console: Console,
 }
 
 impl MainState {
@@ -22,7 +22,7 @@ impl MainState {
         MainState {
             schedule,
             ui: Vec::new(),
-            //console: Console::default(),
+            console: Console::default(),
         }
     }
 }
@@ -131,10 +131,10 @@ impl State for MainState {
     }
 
     fn update_inactive(&mut self, world: &mut World, resources: &mut Resources) -> Result<()> {
-        for window in self.ui {
+        for window in &mut self.ui {
             window.update(world, resources);
         }
-        
+
         Ok(())
     }
 }

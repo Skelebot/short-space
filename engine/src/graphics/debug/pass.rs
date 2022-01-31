@@ -147,7 +147,7 @@ impl DebugPass {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader_module,
-                entry_point: "main",
+                entry_point: "vs_main",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<super::Line>() as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Instance,
@@ -156,7 +156,7 @@ impl DebugPass {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader_module,
-                entry_point: "main",
+                entry_point: "fs_main",
                 targets: &[surface_config.format.into()],
             }),
             primitive: wgpu::PrimitiveState {
@@ -179,6 +179,7 @@ impl DebugPass {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
+            multiview: None,
         });
 
         let vertex_buf = device.create_buffer(&wgpu::BufferDescriptor {

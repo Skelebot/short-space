@@ -1,10 +1,10 @@
-[[block]]
+
 struct Globals {
     view_proj: mat4x4<f32>;
     cam_pos: vec3<f32>;
 };
 
-[[block]]
+
 struct DebugLinesUniforms {
     thickness: f32;
 };
@@ -20,7 +20,7 @@ var<uniform> globals: Globals;
 var<uniform> debug_lines_uniforms: DebugLinesUniforms;
 
 [[stage(vertex)]]
-fn main(
+fn vs_main(
     [[location(0)]] pos_a: vec3<f32>,
     [[location(1)]] color_a: vec4<f32>,
     [[location(2)]] pos_b: vec3<f32>,
@@ -69,6 +69,6 @@ struct FragmentOutput {
 };
 
 [[stage(fragment)]]
-fn main([[location(0)]] color: vec4<f32>) -> FragmentOutput {
+fn fs_main([[location(0)]] color: vec4<f32>) -> FragmentOutput {
     return FragmentOutput(color);
 }

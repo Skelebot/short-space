@@ -55,10 +55,7 @@ macro_rules! bind_group_layout_entries {
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
                 visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler {
-                    comparison: false,
-                    filtering: false,
-                },
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
                 count: None,
             },
             // Diffuse texture
@@ -131,6 +128,7 @@ impl MeshPipeline {
             }),
             // TODO: Multisample antialiasing
             multisample: wgpu::MultisampleState::default(),
+            multiview: None,
         });
         MeshPipeline {
             part_bind_group_layout,

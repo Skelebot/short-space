@@ -1,4 +1,4 @@
-[[block]]
+
 struct MatFactors {
     diffuse: vec4<f32>;
     emissive: vec4<f32>;

@@ -109,7 +109,7 @@ impl Graphics {
         &mut self,
         world: &mut World,
         resources: &mut Resources,
-        ui: Option<(Vec<egui::ClippedMesh>, std::sync::Arc<egui::Texture>)>,
+        ui: Option<(Vec<egui::ClippedMesh>, std::sync::Arc<egui::FontImage>)>,
     ) -> Result<()> {
         let frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
