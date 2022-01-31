@@ -1,13 +1,17 @@
 use legion::{Resources, Schedule, World};
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 
+use crate::ui::{StatusWindow, console::Console};
+
 use super::loading::LoadingState;
-use engine::ui::StartWindow;
+use eyre::{eyre::WrapErr, Result};
 
 use engine::state::{CustomEvent, State, Transition};
 
 pub struct MainState {
     schedule: Schedule,
+    ui: Vec<Box<dyn StatusWindow>>,
+    //console: Console,
 }
 
 impl MainState {
@@ -15,39 +19,21 @@ impl MainState {
         let schedule = Schedule::builder()
             //.add_system()
             .build();
-        MainState { schedule }
+        MainState {
+            schedule,
+            ui: Vec::new(),
+            //console: Console::default(),
+        }
     }
 }
 
 impl State for MainState {
-    fn on_start(&mut self, _world: &mut World, resources: &mut Resources) {
-        resources.insert(StartWindow {
-            opened: true,
-            play_pressed: false,
-            exit_pressed: false,
-        })
-    }
-
-    fn on_stop(&mut self, _world: &mut World, resources: &mut Resources) {
-        resources.remove::<StartWindow>();
-    }
-
-    fn on_pause(&mut self, _world: &mut World, resources: &mut Resources) {
-        resources.get_mut::<StartWindow>().unwrap().opened = false;
-    }
-
-    fn on_resume(&mut self, _world: &mut World, resources: &mut Resources) {
-        let mut start = resources.get_mut::<StartWindow>().unwrap();
-        start.opened = true;
-        start.play_pressed = false;
-    }
-
     fn handle_event(
         &mut self,
         _world: &mut World,
         resources: &mut Resources,
-        event: winit::event::Event<CustomEvent>,
-    ) -> Transition {
+        event: &winit::event::Event<CustomEvent>,
+    ) -> Result<Transition> {
         match event {
             Event::WindowEvent {
                 event:
@@ -67,24 +53,36 @@ impl State for MainState {
                         .get::<winit::event_loop::EventLoopProxy<CustomEvent>>()
                         .unwrap()
                         .send_event(CustomEvent::Exit)
-                        .unwrap();
+                        .wrap_err("EventLoop is no more")?;
                     // Doesn't matter
-                    Transition::None
+                    Ok(Transition::None)
                 }
-                Some(VirtualKeyCode::Return) => Transition::Push(Box::new(LoadingState::new())),
-                _ => Transition::None,
+                Some(VirtualKeyCode::Return) => Ok(Transition::Push(Box::new(LoadingState::new()))),
+                _ => Ok(Transition::None),
             },
-            _ => Transition::None,
+            _ => Ok(Transition::None),
         }
     }
 
-    fn update(&mut self, world: &mut World, resources: &mut Resources) -> Transition {
+    fn update(&mut self, world: &mut World, resources: &mut Resources) -> Result<Transition> {
         self.schedule.execute(world, resources);
         // Draw UI
         {
             let ctx = resources.get::<egui::CtxRef>().unwrap();
-            let response = egui::SidePanel::left("left_panel")
+            // divided by pixels per point for a value in pixels, plus offset for margin
+            let left_center = (ctx.available_rect().left_center().to_vec2()
+                / ctx.pixels_per_point())
+                + egui::Vec2::new(50.0, 0.0);
+            let response = egui::Window::new("Main menu")
+                // When set with anchor LEFT_CENTER, the window jitters until the window is first resized.
+                // No idea why it happens
+                //.anchor(egui::Align2::LEFT_CENTER, [50.0, 0.0])
+                .fixed_pos(left_center.to_pos2())
                 .resizable(false)
+                .title_bar(false)
+                .frame(egui::Frame {
+                    ..Default::default()
+                })
                 .show(&ctx, |ui| {
                     ui.label("ENDLESS JOSH");
                     if ui.button("Start").clicked() {
@@ -95,7 +93,48 @@ impl State for MainState {
                     };
                     Transition::None
                 });
-            response.inner
+            // The window is not collapsible and not closeable, so inner and response are never None
+            response
+                .map(|r| Ok(r.inner.unwrap()))
+                .unwrap_or(Ok(Transition::None))
         }
+    }
+
+    fn handle_event_inactive(
+        &mut self,
+        _world: &mut World,
+        resources: &mut Resources,
+        event: &winit::event::Event<CustomEvent>,
+    ) -> Result<Transition> {
+        match event {
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode,
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } => match virtual_keycode {
+                Some(VirtualKeyCode::P) => {
+                    self.console.open = !self.console.open;
+                    Ok(Transition::None)
+                }
+                _ => Ok(Transition::None),
+            },
+            _ => Ok(Transition::None),
+        }
+    }
+
+    fn update_inactive(&mut self, world: &mut World, resources: &mut Resources) -> Result<()> {
+        for window in self.ui {
+            window.update(world, resources);
+        }
+        
+        Ok(())
     }
 }

@@ -22,6 +22,9 @@ pub const FWD_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::W, VirtualKeyCode:
 pub const SIDE_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::D, VirtualKeyCode::A);
 pub const UP_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::Space, VirtualKeyCode::LControl);
 
+pub const YAW_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::Left, VirtualKeyCode::Right);
+pub const PITCH_AXIS: Axis = Axis::KeyboardAxis(VirtualKeyCode::Up, VirtualKeyCode::Down);
+
 // TODO: Move to an ActionBindings struct and load it from a config file
 pub const SPRINT_ACTION: Action = Action::KeyboardAction(VirtualKeyCode::LShift);
 

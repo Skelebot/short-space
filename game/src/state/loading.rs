@@ -1,5 +1,7 @@
 use engine::graphics::{Camera, MainCamera};
 
+use eyre::Result;
+
 use crate::{
     player::{Player, PlayerState},
     settings::{GameSettings, PhysicsSettings},
@@ -8,7 +10,7 @@ use crate::{
 
 use engine::{
     graphics, physics,
-    state::{CustomEvent, Scoped, State, Transition},
+    state::{Scoped, State, Transition},
 };
 
 use super::game::GameState;
@@ -24,28 +26,17 @@ impl LoadingState {
 }
 
 impl State for LoadingState {
-    fn on_start(&mut self, _world: &mut legion::World, _resources: &mut legion::Resources) {}
-
-    fn handle_event(
-        &mut self,
-        _world: &mut legion::World,
-        _resources: &mut legion::Resources,
-        _event: winit::event::Event<CustomEvent>,
-    ) -> Transition {
-        Transition::None
-    }
-
     fn update(
         &mut self,
         world: &mut legion::World,
         resources: &mut legion::Resources,
-    ) -> Transition {
+    ) -> Result<Transition> {
         self.continue_loading(world, resources);
 
         if self.done {
-            Transition::Switch(Box::new(GameState::new()))
+            Ok(Transition::Switch(Box::new(GameState::new())))
         } else {
-            Transition::None
+            Ok(Transition::None)
         }
     }
 }
@@ -74,7 +65,7 @@ impl LoadingState {
         // Player
         let pos: Position = na::Isometry3::from_parts(
             na::Translation3::new(0.0, -2.0, 0.1),
-            na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), -90.0_f32.to_radians()),
+            na::UnitQuaternion::from_axis_angle(&na::Vector3::z_axis(), 0.0),
         )
         .into();
         use nc::shape::{Capsule, ShapeHandle};

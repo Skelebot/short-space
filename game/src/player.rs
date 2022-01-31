@@ -75,7 +75,7 @@ pub fn player_movement(
     // wrong.
     {
         // Rotate the player
-        if input_state.mouse_delta.x != 0.0 || input_state.mouse_delta.y != 0.0 {
+        /*if input_state.mouse_delta.x != 0.0 || input_state.mouse_delta.y != 0.0 {
             let (_, _, yaw) = position.future().rotation.euler_angles();
             let d_yaw_deg = input_state.mouse_delta.x * 0.05;
             let d_pitch_deg = input_state.mouse_delta.y * 0.05;
@@ -87,7 +87,7 @@ pub fn player_movement(
             atlas.look_pitch = pitch_deg.to_radians();
             position.future_mut().rotation =
                 na::UnitQuaternion::from_euler_angles(0.0, 0.0, yaw_deg.to_radians());
-        }
+        }*/
         //let offset: na::Vector2<f32> =
         //    input_state.mouse_delta * game_settings.mouse_sensitivity * time.delta.as_secs_f32();
         //
@@ -153,6 +153,55 @@ pub fn player_movement(
                 );
                 //let current_speed = velocity.linear.dot(&wishdir);
 
+                // Rotate
+                // In angleseconds
+                let rotspeed = 10.0;
+                // Z rotation - yaw (looking left/right)
+                // The left-right rotation is absolute because we never roll; Z is always up
+                let rot_yaw = input_state.get_axis_state(&input::YAW_AXIS)
+                    * rotspeed
+                    * time.delta.as_secs_f32();
+                // The relative rotation values
+                // X rotation - pitch (looking up/down)
+                // This rotation is relative, because as we rotate around Z, the X axis is no
+                // longer to our right; we have to rotate the rotation
+                let rot_pitch = input_state.get_axis_state(&input::PITCH_AXIS)
+                    * rotspeed
+                    * time.delta.as_secs_f32();
+
+                let yaw_rot = na::UnitQuaternion::from_axis_angle(
+                    &na::Vector3::z_axis(),
+                    rot_yaw.to_radians(),
+                );
+
+                let pos = position.future();
+
+                let up = pos.transform_vector(&na::Vector3::z()); // + pos.translation.vector;
+                let front = pos.transform_vector(&na::Vector3::y()) + pos.translation.vector;
+
+                let cross = up.cross(&front);
+
+                let pitch_rot = na::UnitQuaternion::from_axis_angle(
+                    &na::Unit::new_normalize(cross),
+                    rot_pitch.to_radians(),
+                );
+
+                position.future_mut().rotation =
+                    position.future_mut().rotation * pitch_rot * yaw_rot;
+
+                //position.future_mut().rotation = pitch_rot * yaw_rot * position.future_mut().rotation;
+                // Nalgebra probably uses a different coordinate system than us, which means
+                // that we have to swap roll and pitch.
+                // This applies the rotations in absolute axes, but with relation
+                // to the translation's center
+                //position.future_mut().append_rotation_wrt_center_mut(
+                //    &na::UnitQuaternion::from_euler_angles(
+                //        rot_pitch.to_radians(),
+                //        0.0,
+                //        rot_yaw.to_radians(),
+                //    ),
+                //);
+
                 //let wishspeed = 0.0;
                 //// Reduce wishspeed by the amount of veer
                 //let addspeed = wishspeed - current_speed;
@@ -172,6 +221,7 @@ pub fn player_movement(
                 if input_state.is_action_pressed(&input::SPRINT_ACTION) {
                     velocity.linear *= game_settings.sprint_multiplier;
                 }
+                log::debug!("velocity: {:?}", velocity.linear);
             } // Accelerate
 
             // Bleeding off speed(?)

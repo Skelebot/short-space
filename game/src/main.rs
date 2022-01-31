@@ -8,6 +8,7 @@ extern crate log;
 mod player;
 mod settings;
 mod state;
+mod ui;
 
 use engine::{
     assets::AssetLoader,
@@ -15,7 +16,7 @@ use engine::{
     state::{CustomEvent, StateMachine},
 };
 
-use eyre::Result;
+use eyre::{eyre::Context, Result};
 use legion::{Resources, World};
 
 use futures::executor::block_on;
@@ -51,18 +52,16 @@ pub fn main() -> Result<()> {
     let mut state_machine = StateMachine::new(state::MainState::new());
     state_machine.start(&mut world, &mut resources)?;
 
-    //let mut egui_ctx = egui::CtxRef::default();
-    //let mut egui_event_vec = Vec::<egui::Event>::new();
+    // Set up UI
     let mut egui = egui_winit_platform::Platform::new(egui_winit_platform::PlatformDescriptor {
         physical_height: graphics.window.inner_size().height,
         physical_width: graphics.window.inner_size().width,
-        //scale_factor: 2.0,
         scale_factor: graphics.window.scale_factor(),
         style: Default::default(),
         font_definitions: Default::default(),
     });
 
-    log::warn!(
+    info!(
         "Window size: ({:?}, {:?}), * {:?}",
         graphics.window.inner_size().height,
         graphics.window.inner_size().width,
@@ -72,7 +71,7 @@ pub fn main() -> Result<()> {
     info!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
-        //input::handle_egui_event(&event, &mut egui_event_vec);
+        let event_captured = egui.captures_event(&event);
         egui.handle_event(&event);
         match &event {
             &Event::NewEvents(_) => {
@@ -84,24 +83,24 @@ pub fn main() -> Result<()> {
                 // Update frame timings
                 spacetime::prepare(&mut resources);
 
-                // Egui
-                //let raw_input: egui::RawInput = input::gather_egui_input(&mut resources, &mut egui_event_vec);
-                //egui_ctx.begin_frame(raw_input);
                 egui.begin_frame();
-                resources.remove::<egui::CtxRef>();
-                let ctx = egui.context();
-                resources.insert(ctx);
-                log::debug!("Ctx refreshed");
+                // Overwrite the old context with a new one
+                resources.insert(egui.context());
             }
-            // If the user closed the window, exit
+
+            // Handle closing the window and exit events sent by the game
             &Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             }
             | &Event::UserEvent(CustomEvent::Exit) => {
-                state_machine.stop(&mut world, &mut resources);
+                state_machine
+                    .stop(&mut world, &mut resources)
+                    .wrap_err("State machine errored while stopping")
+                    .unwrap();
                 *control_flow = ControlFlow::Exit
             }
+
             // Handle window resizing
             &Event::WindowEvent {
                 event: WindowEvent::Resized(size),
@@ -109,27 +108,47 @@ pub fn main() -> Result<()> {
             } => {
                 graphics.resize(size, &mut world, &mut resources).unwrap();
             }
+
             // Handle user input
             &Event::WindowEvent {
                 event: WindowEvent::KeyboardInput { input, .. },
                 ..
-            } => input::handle_keyboard_input(input, &mut resources),
+            } if !event_captured => input::handle_keyboard_input(input, &mut resources),
             &Event::DeviceEvent {
                 event: DeviceEvent::MouseMotion { delta },
                 ..
-            } => input::handle_mouse_movement(delta, &mut resources),
+            } if !event_captured => input::handle_mouse_movement(delta, &mut resources),
+
             // Event::Suspended
             // Event::Resumed
+
             // Emitted when all of the event loop's input events have been processed and redraw processing is about to begin.
             &Event::MainEventsCleared => {
-                log::debug!("rendering...");
-                state_machine.update(&mut world, &mut resources);
-                // Request rendering
-                //graphics.window.request_redraw();
+                if state_machine
+                    .update(&mut world, &mut resources)
+                    .wrap_err("Fatal error while updating states")
+                    .unwrap()
+                {
+                    send_exit(&resources).unwrap();
+                }
 
-                // Prepare the UI (only when a repaint is needed)
-                let e = egui.end_frame(Some(&graphics.window));
-                let ui = { Some((egui.context().tessellate(e.1), egui.context().texture())) };
+                // Prepare to draw the UI (only when a repaint is needed)
+                // TODO: Cache the rendered UI and slap it on top of everything;
+                // repaint only when needed
+                #[allow(irrefutable_let_patterns)]
+                let ui = if let (
+                    //egui::Output {
+                    //    needs_repaint: true,
+                    //    ..
+                    //},
+                    _,
+                    data,
+                ) = egui.end_frame(Some(&graphics.window))
+                {
+                    Some((egui.context().tessellate(data), egui.context().texture()))
+                } else {
+                    None
+                };
 
                 // Render
                 graphics.render(&mut world, &mut resources, ui).unwrap();
@@ -138,8 +157,24 @@ pub fn main() -> Result<()> {
             &Event::RedrawRequested(_) => {}
             _ => {}
         }
-        // Handle events by UI
-        //graphics.ui_pass.handle_event(&graphics.window, &event);
-        state_machine.handle_event(&mut world, &mut resources, event);
+
+        // Per-state event handling
+        if !event_captured
+            && state_machine
+                .handle_event(&mut world, &mut resources, event)
+                .wrap_err("Fatal error when handling events")
+                .unwrap()
+        {
+            send_exit(&resources).unwrap();
+        }
     });
+}
+
+/// Sends a signal to the event loop to immediately clean up everything and exit
+pub fn send_exit(resources: &Resources) -> Result<()> {
+    resources
+        .get::<winit::event_loop::EventLoopProxy<CustomEvent>>()
+        .unwrap()
+        .send_event(CustomEvent::Exit)
+        .wrap_err("EventLoop is no more")
 }

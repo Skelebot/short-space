@@ -132,20 +132,21 @@ pub async fn setup(
 
     let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-    Ok((
-        Graphics {
-            device,
-            queue,
-            window,
-            mesh_pass,
-            //ui_pass,
-            debug_pass: Some(debug_pass),
-            surface_config,
-            surface,
-            shared,
-            depth_texture,
-            depth_texture_view,
-        },
-        event_loop,
-    ))
+    let graphics = Graphics {
+        device,
+        queue,
+        window,
+        mesh_pass,
+        //ui_pass,
+        debug_pass: Some(debug_pass),
+        surface_config,
+        surface,
+        shared,
+        depth_texture,
+        depth_texture_view,
+    };
+
+    //graphics.resize(graphics.window.inner_size(), world, resources)?;
+
+    Ok((graphics, event_loop))
 }

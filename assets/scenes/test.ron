@@ -24,6 +24,17 @@
         ),
         Model(
             pos: Position(
+                x: 2.1,
+                y: 2.0,
+                z: 0.0,
+                rotation: None,
+            ),
+            scale: None,
+            obj: "models/joshu2.obj",
+            parent: None,
+        ),
+        Model(
+            pos: Position(
                 x: 2.0,
                 y: -2.0,
                 z: 0.5,

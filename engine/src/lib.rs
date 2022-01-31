@@ -8,7 +8,6 @@ pub mod input;
 pub mod physics;
 pub mod spacetime;
 pub mod state;
-pub mod ui;
 
 #[cfg(test)]
 mod tests {

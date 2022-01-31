@@ -6,39 +6,38 @@ authors = ["antoni simka <antonisimka.8@gmail.com>"]
 
 [dependencies]
 # graphics
-winit = { version = "0.25.0", default_features = false, features = ["x11"] }
-egui = "0.14.2"
+winit = { version = "0.26.1", default_features = false, features = ["x11"] }
+egui = "0.16.1"
 
 # math
-nalgebra = "0.29.0"
+nalgebra = "0.30.1"
 
 # physics
 ncollide3d = "0.32.0"
 
 # file loading
-serde = "1.0.130"
-ron = "0.6.5"
+serde = "1.0.133"
+ron = "0.7.0"
 image = "0.23.14"
 
 # data loading
-bytemuck = { version = "1.7.2", features = ["derive"] }
+bytemuck = { version = "1.7.3", features = ["derive"] }
 
 # misc
-const_format = "0.2.21"
-futures = "0.3.17"
+const_format = "0.2.22"
+futures = "0.3.19"
 env_logger = "0.9.0"
 log = "0.4.14"
 
 # error handling
-color-eyre = "0.5.11"
+color-eyre = "0.6.0"
 legion = "0.4.0"
 wavefront_obj = "10.0.0"
-egui-winit = "0.0.1-alpha.2"
-epaint = "0.14.0"
-egui_wgpu_backend = "0.13.0"
+egui-winit = "0.16.0"
+egui_wgpu_backend = "0.16.0"
 
 [dependencies.wgpu]
-version = "0.11.0"
+version = "0.12.0"
 features = ["spirv"]
 
 [build-dependencies]

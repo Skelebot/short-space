@@ -207,12 +207,14 @@ impl Pass for MeshPass {
         // Upload global uniforms
         if let Some(main_cam) = resources.get::<MainCamera>() {
             let cam_pos = main_cam.position.current(lerp);
+            log::debug!("cam_pos: {:?}", cam_pos);
             let view_proj = main_cam.camera.projection()
                 * main_cam.camera.view(
                     cam_pos.translation.vector.into(),
                     cam_pos.rotation.euler_angles().2.to_degrees(),
                     cam_pos.rotation.euler_angles().1.to_degrees(),
                 );
+            let view_proj = main_cam.camera.projection() * main_cam.camera.view2(&cam_pos);
             let global_uniforms = GlobalUniforms {
                 view_proj: view_proj.into(),
                 camera_pos: cam_pos.translation.vector.into(),

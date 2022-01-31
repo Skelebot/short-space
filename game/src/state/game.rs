@@ -1,5 +1,7 @@
 use std::any::TypeId;
 
+use eyre::{eyre::WrapErr, Result};
+
 use crate::{settings::*, spacetime::PhysicsTimer};
 use engine::graphics::{color::Rgba, debug::DebugLines, GraphicsShared};
 use legion::{Entity, Resources, Schedule, World};
@@ -28,21 +30,24 @@ impl GameState {
 }
 
 impl State for GameState {
-    fn on_start(&mut self, _world: &mut World, resources: &mut Resources) {
+    fn on_start(&mut self, _world: &mut World, resources: &mut Resources) -> Result<()> {
         // Insert debug lines
         {
             let mut debug_lines = DebugLines::new();
             debug_lines.thickness = 3.0;
+            // Z
             debug_lines.push_line(
                 na::Vector3::repeat(0.0),
                 na::Vector3::new(0.0, 0.0, 10.0),
                 Rgba::new(0.0, 0.0, 1.0, 1.0),
             );
+            // X
             debug_lines.push_line(
                 na::Vector3::repeat(0.0),
                 na::Vector3::new(10.0, 0.0, 0.0),
                 Rgba::new(1.0, 0.0, 0.0, 1.0),
             );
+            // Y
             debug_lines.push_line(
                 na::Vector3::repeat(0.0),
                 na::Vector3::new(0.0, 10.0, 0.0),
@@ -50,20 +55,25 @@ impl State for GameState {
             );
             resources.insert(debug_lines);
         }
-        resources.insert(engine::ui::FPSWindow {
-            opened: true,
-            fps: 0.0,
-        });
         let graphics = resources.get::<GraphicsShared>().unwrap();
-        graphics.window.set_cursor_grab(true).unwrap();
+        graphics
+            .window
+            .set_cursor_grab(true)
+            .wrap_err("Failed to grab cursor")?;
         graphics.window.set_cursor_visible(false);
         self.cursor_grabbed = true;
+        Ok(())
     }
 
-    fn on_stop(&mut self, world: &mut legion::World, resources: &mut legion::Resources) {
+    fn on_stop(
+        &mut self,
+        world: &mut legion::World,
+        resources: &mut legion::Resources,
+    ) -> Result<()> {
         resources.remove::<GameSettings>();
         resources.remove::<PhysicsSettings>();
         resources.remove::<PhysicsTimer>();
+        resources.remove::<DebugLines>();
         //resources.remove::<Atlas>();
 
         use legion::IntoQuery;
@@ -79,16 +89,20 @@ impl State for GameState {
             world.remove(e);
         });
         let graphics = resources.get::<GraphicsShared>().unwrap();
-        graphics.window.set_cursor_grab(false).unwrap();
+        graphics
+            .window
+            .set_cursor_grab(false)
+            .wrap_err("Failed to ungrab cursor")?;
         graphics.window.set_cursor_visible(true);
+        Ok(())
     }
 
     fn handle_event(
         &mut self,
         _world: &mut World,
         resources: &mut Resources,
-        event: winit::event::Event<CustomEvent>,
-    ) -> Transition {
+        event: &winit::event::Event<CustomEvent>,
+    ) -> Result<Transition> {
         match event {
             Event::WindowEvent {
                 event:
@@ -103,26 +117,26 @@ impl State for GameState {
                     },
                 ..
             } => match code {
-                VirtualKeyCode::Back => Transition::Pop,
+                VirtualKeyCode::Back => Ok(Transition::Pop),
                 VirtualKeyCode::Escape => {
                     let graphics = resources.get::<GraphicsShared>().unwrap();
                     graphics
                         .window
                         .set_cursor_grab(!self.cursor_grabbed)
-                        .unwrap();
+                        .wrap_err("Failed to grab cursor")?;
                     graphics.window.set_cursor_visible(self.cursor_grabbed);
                     self.cursor_grabbed = !self.cursor_grabbed;
                     // Pause the game
-                    Transition::None
+                    Ok(Transition::None)
                 }
-                _ => Transition::None,
+                _ => Ok(Transition::None),
             },
-            _ => Transition::None,
+            _ => Ok(Transition::None),
         }
     }
 
-    fn update(&mut self, world: &mut World, resources: &mut Resources) -> Transition {
+    fn update(&mut self, world: &mut World, resources: &mut Resources) -> Result<Transition> {
         self.schedule.execute(world, resources);
-        Transition::None
+        Ok(Transition::None)
     }
 }

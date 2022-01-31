@@ -165,20 +165,19 @@ impl AssetLoader {
     }
 
     pub fn load_material_set(&self, path: impl AsRef<Path>) -> Result<MtlSet> {
-        wobj::mtl::parse(&std::fs::read_to_string(self.root_path.join(&path))?).wrap_err_with(
-            || {
-                format!(
-                    "Error while parsing material set from file: {:?}",
-                    self.root_path.join(path)
-                )
-            },
-        )
+        wobj::mtl::parse(&self.load_str(self.root_path.join(&path))?).wrap_err_with(|| {
+            format!(
+                "Error while parsing material set from file: {:?}",
+                self.root_path.join(path)
+            )
+        })
     }
 
     pub fn load_obj_set(&self, path: impl AsRef<Path>) -> Result<Vec<data::MeshData>> {
         let obj_path = self.root_path.join(&path);
         let obj_parent = obj_path.parent().unwrap();
-        let obj_file = std::fs::read_to_string(&obj_path)
+        let obj_file = self
+            .load_str(&obj_path)
             .wrap_err_with(|| format!("Mesh not found: {:?}", &obj_path))?;
 
         // A set of objects; a single wavefront OBJ file can contain multiple objects
@@ -199,7 +198,7 @@ impl AssetLoader {
         let mut objects = Vec::new();
 
         for object in &object_set.objects {
-            debug!("Loading model: {}", object.name);
+            log::warn!("Loading model: {}", object.name);
             //let vertices = object.vertices;
             //let normals = object.normals;
             //let tex_vertices = object.tex_vertices;

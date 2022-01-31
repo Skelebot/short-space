@@ -1,5 +1,3 @@
-extern crate walkdir;
-
 use std::fs::{self, DirBuilder};
 use std::path::{Path, PathBuf};
 use std::{env, io::Write, process::Command};
@@ -22,6 +20,7 @@ fn main() {
         &manifest_dir.join("..").join("assets"),
         &executable_path.join("assets"),
     );
+    //std::process::exit(1);
 }
 
 fn locate_target_dir_from_output_dir(mut target_dir_search: &Path) -> Option<&Path> {
@@ -125,6 +124,7 @@ fn copy(from: &Path, to: &Path) {
                     .expect("failed to create target dir");
             } else {
                 fs::copy(entry.path(), &target_path).expect("failed to copy");
+                println!("copying {:?} to {:?}", entry.path(), &target_path);
             }
         }
     }
