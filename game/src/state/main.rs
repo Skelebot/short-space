@@ -68,7 +68,7 @@ impl State for MainState {
         self.schedule.execute(world, resources);
         // Draw UI
         {
-            let ctx = resources.get::<egui::CtxRef>().unwrap();
+            let ctx = resources.get::<egui::Context>().unwrap();
             // divided by pixels per point for a value in pixels, plus offset for margin
             let left_center = (ctx.available_rect().left_center().to_vec2()
                 / ctx.pixels_per_point())
@@ -132,7 +132,7 @@ impl State for MainState {
 
     fn update_inactive(&mut self, world: &mut World, resources: &mut Resources) -> Result<()> {
         for window in &mut self.ui {
-            window.update(world, resources);
+            window.update(world, resources)?;
         }
 
         Ok(())

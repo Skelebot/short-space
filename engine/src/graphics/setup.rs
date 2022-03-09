@@ -131,13 +131,15 @@ pub async fn setup(
     });
 
     let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    
+    let ui_pass = egui_wgpu_backend::RenderPass::new(&device, surface_config.format, 1);
 
     let graphics = Graphics {
         device,
         queue,
         window,
         mesh_pass,
-        //ui_pass,
+        ui_pass: Some(ui_pass),
         debug_pass: Some(debug_pass),
         surface_config,
         surface,

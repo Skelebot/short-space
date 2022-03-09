@@ -1,11 +1,10 @@
-use egui::Ui;
 use engine::{graphics::MainCamera, spacetime::PhysicsTimer};
 
 pub struct CameraDebugWindow;
 
 impl CameraDebugWindow {
     pub fn update(&mut self, world: &mut legion::World, resources: &legion::Resources) {
-        let ctx = resources.get::<egui::CtxRef>().unwrap();
+        let ctx = resources.get::<egui::Context>().unwrap();
         let cam = resources.get::<MainCamera>();
         let lerp = resources
             .get::<PhysicsTimer>()

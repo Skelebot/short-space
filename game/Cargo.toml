@@ -19,26 +19,26 @@ ncollide3d = "0.32.0"
 # File loading
 serde = "1.0.136"
 ron = "0.7.0"
-image = "0.23.14"
+image = "0.24.1"
 
 # Data loading
-bytemuck = { version = "1.7.3", features = ["derive"] }
+bytemuck = { version = "1.8.0", features = ["derive"] }
 
 # Misc
 const_format = "0.2.22"
-futures = "0.3.19"
+futures = "0.3.21"
 env_logger = "0.9.0"
 log = "0.4.14"
 
 # Error handling
-color-eyre = "0.6.0"
+color-eyre = "0.6.1"
 legion = "0.4.0"
 wavefront_obj = "10.0.0"
 
-egui_winit_platform = "0.13.0"
+egui-winit = "0.17.0"
 #epaint = "0.15.0"
-egui_wgpu_backend = "0.16.0"
-egui = "0.16.1"
+egui_wgpu_backend = "0.17.0"
+egui = "0.17.0"
 
 [dependencies.wgpu]
 version = "0.12.0"

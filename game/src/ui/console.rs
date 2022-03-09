@@ -14,7 +14,7 @@ impl Console {
         if self.open {
             let mut cmd_complete = false;
             {
-                let ctx = resources.get::<egui::CtxRef>().unwrap();
+                let ctx = resources.get::<egui::Context>().unwrap();
                 egui::Window::new("Console").show(&ctx, |ui| -> eyre::Result<()> {
                     ui.label("Dev console");
                     ui.add(

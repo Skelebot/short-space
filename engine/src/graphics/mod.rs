@@ -56,6 +56,7 @@ pub struct Graphics {
 
     pub mesh_pass: mesh::MeshPass,
     pub debug_pass: Option<debug::DebugPass>,
+    pub ui_pass: Option<egui_wgpu_backend::RenderPass>,
 
     pub surface_config: wgpu::SurfaceConfiguration,
     pub surface: wgpu::Surface,
@@ -109,7 +110,7 @@ impl Graphics {
         &mut self,
         world: &mut World,
         resources: &mut Resources,
-        ui: Option<(Vec<egui::ClippedMesh>, std::sync::Arc<egui::FontImage>)>,
+        ui_out: Option<(&egui::Context, egui::TexturesDelta, Vec<egui::epaint::ClippedShape>)>,
     ) -> Result<()> {
         let frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -183,31 +184,33 @@ impl Graphics {
             );
         }
 
-        if let Some((triangles, texture)) = ui {
+        if let Some((ctx, textures_delta, shapes)) = ui_out {
             log::debug!("Rendering ui");
-            let mut egui_rpass = egui_wgpu_backend::RenderPass::new(
-                &self.shared.device,
-                self.surface_config.format,
-                1,
-            );
-            egui_rpass.update_texture(&self.device, &self.queue, &texture);
-            egui_rpass.update_user_textures(&self.device, &self.queue);
-            let screen_desc = ScreenDescriptor {
-                physical_width: self.surface_config.width,
-                physical_height: self.surface_config.height,
-                scale_factor: self.window.scale_factor() as f32,
-            };
-            egui_rpass.update_buffers(&self.device, &self.queue, &triangles[..], &screen_desc);
+            if let Some(ref mut egui_rpass) = self.ui_pass {
+                //egui_rpass.update_texture(&self.device, &self.queue, &texture);
+                //egui_rpass.update_user_textures(&self.device, &self.queue);
+                let screen_desc = ScreenDescriptor {
+                    physical_width: self.surface_config.width,
+                    physical_height: self.surface_config.height,
+                    scale_factor: self.window.scale_factor() as f32,
+                };
 
-            egui_rpass
-                .execute(
-                    &mut encoder,
-                    &surface_view,
-                    &triangles[..],
-                    &screen_desc,
-                    None,
-                )
-                .wrap_err_with(|| "Failed to render UI")?;
+                let triangles = ctx.tessellate(shapes);
+                egui_rpass.add_textures(&self.device, &self.queue, &textures_delta)?;
+                //egui_rpass.update_texture(&self.device, &self.queue, ctx.texture());
+                egui_rpass.remove_textures(textures_delta)?;
+                egui_rpass.update_buffers(&self.device, &self.queue, &triangles[..], &screen_desc);
+
+                egui_rpass
+                    .execute(
+                        &mut encoder,
+                        &surface_view,
+                        &triangles[..],
+                        &screen_desc,
+                        None,
+                    )
+                    .wrap_err_with(|| "Failed to render UI")?;
+            }
         }
 
         self.queue.submit(Some(encoder.finish()));

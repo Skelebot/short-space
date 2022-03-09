@@ -53,13 +53,8 @@ pub fn main() -> Result<()> {
     state_machine.start(&mut world, &mut resources)?;
 
     // Set up UI
-    let mut egui = egui_winit_platform::Platform::new(egui_winit_platform::PlatformDescriptor {
-        physical_height: graphics.window.inner_size().height,
-        physical_width: graphics.window.inner_size().width,
-        scale_factor: graphics.window.scale_factor(),
-        style: Default::default(),
-        font_definitions: Default::default(),
-    });
+    // TODO: 4096 ??
+    let mut egui = egui_winit::State::new(4096, &graphics.window);
 
     info!(
         "Window size: ({:?}, {:?}), * {:?}",
@@ -67,12 +62,12 @@ pub fn main() -> Result<()> {
         graphics.window.inner_size().width,
         graphics.window.scale_factor(),
     );
+    
+    let mut egui_ctx = egui::Context::default();
 
     info!("Running the event loop");
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
-        let event_captured = egui.captures_event(&event);
-        egui.handle_event(&event);
         match &event {
             &Event::NewEvents(_) => {
                 // Reset input to values before any events get handled
@@ -83,9 +78,10 @@ pub fn main() -> Result<()> {
                 // Update frame timings
                 spacetime::prepare(&mut resources);
 
-                egui.begin_frame();
+                let input = egui.take_egui_input(&graphics.window);
+                egui_ctx.begin_frame(input);
                 // Overwrite the old context with a new one
-                resources.insert(egui.context());
+                resources.insert(egui_ctx.clone());
             }
 
             // Handle closing the window and exit events sent by the game
@@ -108,16 +104,16 @@ pub fn main() -> Result<()> {
             } => {
                 graphics.resize(size, &mut world, &mut resources).unwrap();
             }
-
-            // Handle user input
-            &Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
-                ..
-            } if !event_captured => input::handle_keyboard_input(input, &mut resources),
-            &Event::DeviceEvent {
-                event: DeviceEvent::MouseMotion { delta },
-                ..
-            } if !event_captured => input::handle_mouse_movement(delta, &mut resources),
+            
+            Event::WindowEvent { event: event, .. }=> {
+                let captured = egui.on_event(&egui_ctx, &event);
+                if captured { return; }
+                match event {
+                    WindowEvent::KeyboardInput { input, .. } => input::handle_keyboard_input(*input, &mut resources),
+                    //WindowEvent::AxisMotion { delta } => input::handle_mouse_movement(delta, &mut resources),
+                    _ => (),
+                }
+            }
 
             // Event::Suspended
             // Event::Resumed
@@ -135,23 +131,13 @@ pub fn main() -> Result<()> {
                 // Prepare to draw the UI (only when a repaint is needed)
                 // TODO: Cache the rendered UI and slap it on top of everything;
                 // repaint only when needed
-                #[allow(irrefutable_let_patterns)]
-                let ui = if let (
-                    //egui::Output {
-                    //    needs_repaint: true,
-                    //    ..
-                    //},
-                    _,
-                    data,
-                ) = egui.end_frame(Some(&graphics.window))
-                {
-                    Some((egui.context().tessellate(data), egui.context().texture()))
-                } else {
-                    None
-                };
+                let out = egui_ctx.end_frame();
+                // TODO: make use of out.needs_repaint
+                egui.handle_platform_output(&graphics.window, &egui_ctx, out.platform_output);
 
+                // TODO: Cache ui?
                 // Render
-                graphics.render(&mut world, &mut resources, ui).unwrap();
+                graphics.render(&mut world, &mut resources, Some((&egui_ctx, out.textures_delta, out.shapes))).unwrap();
             }
             // Render the frame
             &Event::RedrawRequested(_) => {}
@@ -159,8 +145,7 @@ pub fn main() -> Result<()> {
         }
 
         // Per-state event handling
-        if !event_captured
-            && state_machine
+        if state_machine
                 .handle_event(&mut world, &mut resources, event)
                 .wrap_err("Fatal error when handling events")
                 .unwrap()
